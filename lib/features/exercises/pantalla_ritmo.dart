@@ -107,7 +107,7 @@ class _PantallaRitmoState extends ConsumerState<PantallaRitmo> with TickerProvid
     });
   }
   
-  void _finishGame() {
+  void _finishGame() async {
     _gameLoop?.cancel();
     setState(() {
       _isPlaying = false;
@@ -115,6 +115,20 @@ class _PantallaRitmoState extends ConsumerState<PantallaRitmo> with TickerProvid
       _lastFeedback = "¡LECCIÓN COMPLETADA!";
       _feedbackColor = const Color(0xFFFFD700);
     });
+
+    // Guardar progreso usando ApiClient
+    final api = ref.read(apiClientProvider);
+    final exercises = await api.getExercises();
+    if (exercises.isNotEmpty) {
+      final lastExId = exercises.last['id']?.toString();
+      if (lastExId != null) {
+        // Enviar puntuación (se puede calcular un porcentaje basado en las notas acertadas,
+        // por ahora mandamos el score base o un % calculado)
+        int maxPosible = _notes.length * 10;
+        int porcentaje = maxPosible > 0 ? ((_score / maxPosible) * 100).clamp(0, 100).toInt() : 100;
+        await api.guardarProgreso(lastExId, porcentaje);
+      }
+    }
   }
 
   void _checkMisses() {

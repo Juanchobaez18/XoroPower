@@ -133,7 +133,7 @@ class _AdminAddExerciseScreenState extends ConsumerState<AdminAddExerciseScreen>
       await api.saveExercise({
         'titulo': _titleController.text.trim(),
         'modulo_id': _selectedModuleId,
-        'notas': _recordedNotes,
+        'notas': _recordedNotes, // Supabase SDK handlea List<Map> y lo guarda como JSONB
         'creado_el': DateTime.now().toIso8601String(),
       });
       

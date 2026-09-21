@@ -162,4 +162,60 @@ class ApiClient extends ChangeNotifier {
       return [];
     }
   }
+
+  // --- PROGRESS ---
+  Future<void> guardarProgreso(String idEjercicio, int puntuacion) async {
+    if (_supabase.auth.currentUser == null) return;
+    try {
+      final completado = puntuacion >= 70;
+      
+      // Consultamos si ya existe progreso para este ejercicio
+      final userId = _supabase.auth.currentUser!.id;
+      final existingData = await _supabase
+          .from('progreso_usuario')
+          .select()
+          .eq('id_usuario', userId)
+          .eq('id_ejercicio', idEjercicio)
+          .maybeSingle();
+
+      int mejorPuntuacion = puntuacion;
+      int vecesIntentado = 1;
+
+      if (existingData != null) {
+        final currentMax = existingData['puntuacion_mas_alta'] as int? ?? 0;
+        mejorPuntuacion = puntuacion > currentMax ? puntuacion : currentMax;
+        vecesIntentado = (existingData['veces_intentado'] as int? ?? 0) + 1;
+      }
+
+      await _supabase.from('progreso_usuario').upsert({
+        'id_usuario': userId,
+        'id_ejercicio': idEjercicio,
+        'completado': completado || (existingData?['completado'] == true),
+        'puntuacion_mas_alta': mejorPuntuacion,
+        'porcentaje_avance': mejorPuntuacion,
+        'veces_intentado': vecesIntentado,
+        'timestamp_ultimo_intento': DateTime.now().toIso8601String(),
+        if (completado && existingData?['timestamp_completado'] == null)
+          'timestamp_completado': DateTime.now().toIso8601String(),
+      }, onConflict: 'id_usuario, id_ejercicio');
+
+      await registrarUso();
+    } catch (e) {
+      debugPrint('Error al guardar progreso: $e');
+    }
+  }
+
+  Future<void> registrarUso() async {
+    if (_supabase.auth.currentUser == null) return;
+    try {
+      final userId = _supabase.auth.currentUser!.id;
+      await _supabase.from('rachas_usuario').upsert({
+        'id_usuario': userId,
+        'ultima_actividad': DateTime.now().toIso8601String(),
+        'dias_seguidos': 1, 
+      });
+    } catch (e) {
+      debugPrint('Error al registrar uso: $e');
+    }
+  }
 }
