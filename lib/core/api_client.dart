@@ -85,19 +85,14 @@ class ApiClient extends ChangeNotifier {
       final AuthResponse res = await _supabase.auth.signUp(
         email: email,
         password: password,
+        data: {'name': name},
       );
-      
-      if (res.user != null) {
-        // Guardar perfil en la tabla users
-        await _supabase.from('users').insert({
-          'id': res.user!.id,
-          'email': email,
-          'name': name,
-          'role': 'student',
-        });
-      }
+      // El perfil en public.users se creará automáticamente vía un Trigger en Supabase.
     } catch (e) {
-      throw Exception('El correo ya está registrado o hubo un error.');
+      if (e is AuthException) {
+        throw Exception(e.message);
+      }
+      throw Exception(e.toString());
     }
   }
 
