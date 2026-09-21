@@ -68,7 +68,10 @@ class ApiClient extends ChangeNotifier {
       );
       // El onAuthStateChange listener disparará notifyListeners()
     } catch (e) {
-      throw Exception('Credenciales incorrectas o error de conexión.');
+      if (e is AuthException) {
+        throw Exception(e.message);
+      }
+      throw Exception(e.toString());
     }
   }
 
