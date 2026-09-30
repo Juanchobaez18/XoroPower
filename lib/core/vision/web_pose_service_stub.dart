@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'pose_detector_service.dart';
 
 class WebPoseService {
-  final Function(HandSide) onShakeDetected;
+  final Function(DetectedMotion) onShakeDetected;
 
   WebPoseService({required this.onShakeDetected});
 

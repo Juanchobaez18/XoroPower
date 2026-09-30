@@ -107,7 +107,10 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/pantalla_ritmo',
-        builder: (context, state) => const PantallaRitmo(titulo: 'Prueba de Cámara'),
+        builder: (context, state) => PantallaRitmo(
+          titulo: 'Prueba de Cámara',
+          exerciseId: state.uri.queryParameters['exerciseId'],
+        ),
       ),
       GoRoute(
         path: '/module/:id',

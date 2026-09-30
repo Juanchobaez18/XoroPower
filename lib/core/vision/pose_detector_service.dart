@@ -2,6 +2,14 @@ import 'package:flutter/foundation.dart';
 import 'package:google_mlkit_pose_detection/google_mlkit_pose_detection.dart';
 
 enum HandSide { left, right }
+enum MotionDirection { up, down }
+
+class DetectedMotion {
+  final HandSide hand;
+  final MotionDirection direction;
+
+  const DetectedMotion({required this.hand, required this.direction});
+}
 
 class PoseDetectorService {
   final PoseDetector _poseDetector = PoseDetector(options: PoseDetectorOptions());
@@ -13,15 +21,13 @@ class PoseDetectorService {
   double _lastRightWristY = 0;
   int _lastTimestamp = 0;
   
-  // Umbral de velocidad hacia abajo (pixels por milisegundo)
-  // Se requerirá calibración fina, empezamos con 0.8 como un golpe brusco.
-  final double shakeVelocityThreshold = 0.8; 
+  final double shakeVelocityThreshold = 0.8;
   
   // Evitar disparos múltiples por el mismo movimiento (cooldown de 300ms)
   int _lastLeftShakeTime = 0;
   int _lastRightShakeTime = 0;
   
-  final Function(HandSide) onShakeDetected;
+  final Function(DetectedMotion) onShakeDetected;
   
   PoseDetectorService({required this.onShakeDetected});
 
@@ -48,13 +54,15 @@ class PoseDetectorService {
       final dt = currentTime - _lastTimestamp;
       if (dt == 0) return;
 
-      // Calcular velocidad de la muñeca izquierda (roja)
+      // La coordenada Y crece hacia abajo; el signo identifica la dirección.
       if (leftWrist != null) {
         final velocity = (leftWrist.y - _lastLeftWristY) / dt;
-        // Si la velocidad hacia abajo es mayor al umbral y pasó el cooldown
-        if (velocity > shakeVelocityThreshold && (currentTime - _lastLeftShakeTime) > 300) {
+        if (velocity.abs() > shakeVelocityThreshold && (currentTime - _lastLeftShakeTime) > 300) {
           _lastLeftShakeTime = currentTime;
-          onShakeDetected(HandSide.left);
+          onShakeDetected(DetectedMotion(
+            hand: HandSide.left,
+            direction: velocity < 0 ? MotionDirection.up : MotionDirection.down,
+          ));
         }
         _lastLeftWristY = leftWrist.y;
       }
@@ -62,9 +70,12 @@ class PoseDetectorService {
       // Calcular velocidad de la muñeca derecha (azul)
       if (rightWrist != null) {
         final velocity = (rightWrist.y - _lastRightWristY) / dt;
-        if (velocity > shakeVelocityThreshold && (currentTime - _lastRightShakeTime) > 300) {
+        if (velocity.abs() > shakeVelocityThreshold && (currentTime - _lastRightShakeTime) > 300) {
           _lastRightShakeTime = currentTime;
-          onShakeDetected(HandSide.right);
+          onShakeDetected(DetectedMotion(
+            hand: HandSide.right,
+            direction: velocity < 0 ? MotionDirection.up : MotionDirection.down,
+          ));
         }
         _lastRightWristY = rightWrist.y;
       }

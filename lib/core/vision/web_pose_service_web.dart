@@ -5,16 +5,14 @@ import 'package:flutter/material.dart';
 import 'pose_detector_service.dart';
 
 class WebPoseService {
-  final Function(HandSide) onShakeDetected;
+  final Function(DetectedMotion) onShakeDetected;
 
   WebPoseService({required this.onShakeDetected}) {
     // Bind the global JS callback to our Dart function
-    js.context['onWebPoseShakeDetected'] = (String sideStr) {
-      if (sideStr == 'left') {
-        onShakeDetected(HandSide.left);
-      } else if (sideStr == 'right') {
-        onShakeDetected(HandSide.right);
-      }
+    js.context['onWebPoseShakeDetected'] = (String sideStr, String directionStr) {
+      final hand = sideStr == 'left' ? HandSide.left : HandSide.right;
+      final direction = directionStr == 'up' ? MotionDirection.up : MotionDirection.down;
+      onShakeDetected(DetectedMotion(hand: hand, direction: direction));
     };
   }
 

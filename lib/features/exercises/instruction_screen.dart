@@ -131,7 +131,7 @@ class _InstructionScreenState extends State<InstructionScreen> {
                 ),
                 onPressed: () {
                   if (isLastPage) {
-                    context.pushReplacement('/pantalla_ritmo');
+                    context.pushReplacement('/pantalla_ritmo?exerciseId=${widget.exerciseId}');
                   } else {
                     setState(() {
                       _currentPage++;

@@ -6,6 +6,7 @@ import '../../core/api_client.dart';
 import '../../core/audio_service.dart';
 import '../../core/vision/pose_detector_service.dart';
 import 'camera_view.dart';
+import 'lesson_staff.dart';
 
 class AdminAddExerciseScreen extends ConsumerStatefulWidget {
   const AdminAddExerciseScreen({super.key});
@@ -20,8 +21,9 @@ class _AdminAddExerciseScreenState extends ConsumerState<AdminAddExerciseScreen>
   bool _isRecording = false;
   DateTime? _recordingStartTime;
   Timer? _metronomeTimer;
+  static const int _tempoBpm = 120;
   
-  final List<Map<String, dynamic>> _recordedNotes = [];
+  final List<StaffNote> _recordedNotes = [];
   
   String _lastActionText = "Listo para grabar";
   Color _statusColor = Colors.white;
@@ -56,19 +58,20 @@ class _AdminAddExerciseScreenState extends ConsumerState<AdminAddExerciseScreen>
     super.dispose();
   }
 
-  void _onShakeDetected(HandSide side) {
+  void _onShakeDetected(DetectedMotion motion) {
     if (!_isRecording || _recordingStartTime == null) return;
     
     final elapsedMs = DateTime.now().difference(_recordingStartTime!).inMilliseconds;
     
     setState(() {
-      _recordedNotes.add({
-        'time_ms': elapsedMs,
-        'hand': side == HandSide.right ? 'derecha' : 'izquierda',
-      });
+      _recordedNotes.add(StaffNote(
+        timeMs: elapsedMs,
+        hand: motion.hand == HandSide.right ? 'derecha' : 'izquierda',
+        direction: motion.direction == MotionDirection.up ? 'arriba' : 'abajo',
+      ));
       
-      _lastActionText = side == HandSide.right ? "GOLPE DERECHO" : "GOLPE IZQUIERDO";
-      _statusColor = side == HandSide.right ? const Color(0xFFFF0033) : const Color(0xFF0055FF);
+      _lastActionText = '${motion.hand == HandSide.right ? 'DERECHA' : 'IZQUIERDA'} · ${motion.direction == MotionDirection.up ? 'ARRIBA' : 'ABAJO'}';
+      _statusColor = motion.hand == HandSide.right ? const Color(0xFFFF0033) : const Color(0xFF0055FF);
     });
 
     Future.delayed(const Duration(milliseconds: 300), () {
@@ -98,7 +101,7 @@ class _AdminAddExerciseScreenState extends ConsumerState<AdminAddExerciseScreen>
         _statusColor = Colors.greenAccent;
         
         // Iniciar metrónomo (120 BPM = 500ms)
-        _metronomeTimer = Timer.periodic(const Duration(milliseconds: 500), (timer) {
+        _metronomeTimer = Timer.periodic(Duration(milliseconds: 60000 ~/ _tempoBpm), (timer) {
           ref.read(audioServiceProvider).playMetronome();
         });
       }
@@ -130,10 +133,11 @@ class _AdminAddExerciseScreenState extends ConsumerState<AdminAddExerciseScreen>
     final api = ref.read(apiClientProvider);
     
     try {
+      final notes = _recordedNotes.map((note) => note.toJson()..['tempo_bpm'] = _tempoBpm).toList();
       await api.saveExercise({
         'titulo': _titleController.text.trim(),
         'modulo_id': _selectedModuleId,
-        'notas': _recordedNotes, // Supabase SDK handlea List<Map> y lo guarda como JSONB
+        'notas': notes,
         'creado_el': DateTime.now().toIso8601String(),
       });
       
@@ -195,9 +199,11 @@ class _AdminAddExerciseScreenState extends ConsumerState<AdminAddExerciseScreen>
 
           // 3. UI de Controles Superpuestos
           SafeArea(
-            child: Padding(
+            child: SingleChildScrollView(
+              child: Padding(
               padding: const EdgeInsets.all(24.0),
               child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   // Título del ejercicio
                   TextField(
@@ -254,7 +260,10 @@ class _AdminAddExerciseScreenState extends ConsumerState<AdminAddExerciseScreen>
                   else
                     const Text('No hay módulos creados. Crea uno en el inicio.', style: TextStyle(color: Colors.redAccent)),
                   
-                  const Spacer(),
+                  const SizedBox(height: 18),
+
+                  LessonStaff(notes: _recordedNotes, bpm: _tempoBpm),
+                  const SizedBox(height: 12),
                   
                   // Indicador de estado central
                   AnimatedContainer(
@@ -276,7 +285,7 @@ class _AdminAddExerciseScreenState extends ConsumerState<AdminAddExerciseScreen>
                     ),
                   ),
 
-                  const Spacer(),
+                  const SizedBox(height: 18),
                   
                   // Botonera Inferior
                   Row(
@@ -311,6 +320,7 @@ class _AdminAddExerciseScreenState extends ConsumerState<AdminAddExerciseScreen>
                   const SizedBox(height: 20),
                 ],
               ),
+            ),
             ),
           ),
         ],

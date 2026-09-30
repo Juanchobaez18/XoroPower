@@ -7,7 +7,7 @@ import '../../core/vision/pose_detector_service.dart';
 import '../../core/vision/web_pose_service.dart';
 
 class CameraView extends StatefulWidget {
-  final Function(HandSide) onShake;
+  final Function(DetectedMotion) onShake;
 
   const CameraView({super.key, required this.onShake});
 
@@ -130,9 +130,9 @@ class _CameraViewState extends State<CameraView> {
             onTapDown: (details) {
               final width = MediaQuery.of(context).size.width;
               if (details.globalPosition.dx < width / 2) {
-                widget.onShake(HandSide.left);
+                widget.onShake(const DetectedMotion(hand: HandSide.left, direction: MotionDirection.down));
               } else {
-                widget.onShake(HandSide.right);
+                widget.onShake(const DetectedMotion(hand: HandSide.right, direction: MotionDirection.down));
               }
             },
             child: Container(

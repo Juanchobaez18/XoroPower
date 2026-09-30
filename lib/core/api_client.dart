@@ -148,6 +148,17 @@ class ApiClient extends ChangeNotifier {
     }
   }
 
+  Future<Map<String, dynamic>?> getExerciseById(String id) async {
+    await init();
+    try {
+      final data = await _supabase.from('exercises').select().eq('id', id).maybeSingle();
+      return data;
+    } catch (e) {
+      debugPrint('Error fetch exercise: $e');
+      return null;
+    }
+  }
+
   // --- USERS (Admin) ---
   Future<List<Map<String, dynamic>>> getAllUsers() async {
     await init();

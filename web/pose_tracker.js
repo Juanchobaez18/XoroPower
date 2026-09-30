@@ -12,7 +12,7 @@ window.webPoseTracker = {
   lastLeftShakeTime: 0,
   lastRightShakeTime: 0,
   
-  shakeVelocityThreshold: 0.001, // Normalized pixels per ms (0.8 / 1000 approx for web)
+  shakeVelocityThreshold: 0.001,
   
   startTracking: function(videoElement) {
     if (!videoElement) return;
@@ -78,9 +78,9 @@ window.webPoseTracker = {
     // Calculate Left Velocity
     if (leftWrist) {
       const velocity = (leftWrist.y - this.lastLeftWristY) / dt;
-      if (velocity > this.shakeVelocityThreshold && (currentTime - this.lastLeftShakeTime) > 300) {
+      if (Math.abs(velocity) > this.shakeVelocityThreshold && (currentTime - this.lastLeftShakeTime) > 300) {
         this.lastLeftShakeTime = currentTime;
-        this.dispatchShakeEvent('left');
+        this.dispatchShakeEvent('left', velocity < 0 ? 'up' : 'down');
       }
       this.lastLeftWristY = leftWrist.y;
     }
@@ -88,9 +88,9 @@ window.webPoseTracker = {
     // Calculate Right Velocity
     if (rightWrist) {
       const velocity = (rightWrist.y - this.lastRightWristY) / dt;
-      if (velocity > this.shakeVelocityThreshold && (currentTime - this.lastRightShakeTime) > 300) {
+      if (Math.abs(velocity) > this.shakeVelocityThreshold && (currentTime - this.lastRightShakeTime) > 300) {
         this.lastRightShakeTime = currentTime;
-        this.dispatchShakeEvent('right');
+        this.dispatchShakeEvent('right', velocity < 0 ? 'up' : 'down');
       }
       this.lastRightWristY = rightWrist.y;
     }
@@ -98,9 +98,9 @@ window.webPoseTracker = {
     this.lastTimestamp = currentTime;
   },
   
-  dispatchShakeEvent: function(side) {
+  dispatchShakeEvent: function(side, direction) {
     if (window.onWebPoseShakeDetected) {
-      window.onWebPoseShakeDetected(side);
+      window.onWebPoseShakeDetected(side, direction);
     }
   }
 };
