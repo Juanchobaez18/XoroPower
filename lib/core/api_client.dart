@@ -14,7 +14,7 @@ class ApiClient extends ChangeNotifier {
 
   Future<void> init() async {
     if (_initialized) return;
-    
+
     // Verificar si ya hay una sesión activa
     final session = _supabase.auth.currentSession;
     if (session != null) {
@@ -48,7 +48,7 @@ class ApiClient extends ChangeNotifier {
           .select('name, role')
           .eq('id', userId)
           .single();
-      
+
       _currentName = data['name'] ?? 'Estudiante';
       _isAdmin = data['role'] == 'admin';
     } catch (e) {
@@ -62,10 +62,7 @@ class ApiClient extends ChangeNotifier {
   Future<void> login(String email, String password) async {
     await init();
     try {
-      await _supabase.auth.signInWithPassword(
-        email: email,
-        password: password,
-      );
+      await _supabase.auth.signInWithPassword(email: email, password: password);
       // El onAuthStateChange listener disparará notifyListeners()
     } catch (e) {
       if (e is AuthException) {
@@ -137,6 +134,29 @@ class ApiClient extends ChangeNotifier {
     }
   }
 
+  Future<void> updateExercise(
+    String id,
+    Map<String, dynamic> exercisePayload,
+  ) async {
+    await init();
+    try {
+      await _supabase.from('exercises').update(exercisePayload).eq('id', id);
+    } catch (e) {
+      debugPrint('Error update exercise: $e');
+      throw Exception('Error al actualizar ejercicio');
+    }
+  }
+
+  Future<void> deleteExercise(String id) async {
+    await init();
+    try {
+      await _supabase.from('exercises').delete().eq('id', id);
+    } catch (e) {
+      debugPrint('Error delete exercise: $e');
+      throw Exception('Error al eliminar ejercicio');
+    }
+  }
+
   Future<List<Map<String, dynamic>>> getExercises() async {
     await init();
     try {
@@ -151,7 +171,11 @@ class ApiClient extends ChangeNotifier {
   Future<Map<String, dynamic>?> getExerciseById(String id) async {
     await init();
     try {
-      final data = await _supabase.from('exercises').select().eq('id', id).maybeSingle();
+      final data = await _supabase
+          .from('exercises')
+          .select()
+          .eq('id', id)
+          .maybeSingle();
       return data;
     } catch (e) {
       debugPrint('Error fetch exercise: $e');
@@ -163,10 +187,7 @@ class ApiClient extends ChangeNotifier {
   Future<List<Map<String, dynamic>>> getAllUsers() async {
     await init();
     try {
-      final data = await _supabase
-          .from('users')
-          .select()
-          .neq('role', 'admin');
+      final data = await _supabase.from('users').select().neq('role', 'admin');
       return List<Map<String, dynamic>>.from(data);
     } catch (e) {
       debugPrint('Error fetch users: $e');
@@ -179,7 +200,7 @@ class ApiClient extends ChangeNotifier {
     if (_supabase.auth.currentUser == null) return;
     try {
       final completado = puntuacion >= 70;
-      
+
       // Consultamos si ya existe progreso para este ejercicio
       final userId = _supabase.auth.currentUser!.id;
       final existingData = await _supabase
@@ -223,7 +244,7 @@ class ApiClient extends ChangeNotifier {
       await _supabase.from('rachas_usuario').upsert({
         'id_usuario': userId,
         'ultima_actividad': DateTime.now().toIso8601String(),
-        'dias_seguidos': 1, 
+        'dias_seguidos': 1,
       });
     } catch (e) {
       debugPrint('Error al registrar uso: $e');

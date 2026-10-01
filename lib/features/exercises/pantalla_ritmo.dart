@@ -18,27 +18,39 @@ class PantallaRitmo extends ConsumerStatefulWidget {
 }
 
 class NoteState extends StaffNote {
-  NoteState({required super.timeMs, required super.hand, required super.direction});
+  NoteState({
+    required super.timeMs,
+    required super.hand,
+    required super.direction,
+  });
 }
 
 class _PantallaRitmoState extends ConsumerState<PantallaRitmo> {
   List<NoteState> _notes = [];
   bool _isPlaying = false;
   bool _isFinished = false;
-  
+
   DateTime? _startTime;
   int _elapsedMs = 0;
   Timer? _gameLoop;
-  
+  Timer? _metronomeTimer;
+
   int _score = 0;
   int _combo = 0;
   int _correctHits = 0;
   int _tempoBpm = 120;
   String _exerciseTitle = 'Lección';
   String? _loadedExerciseId;
-  
+
   String _lastFeedback = "¡PREPÁRATE!";
   Color _feedbackColor = Colors.white;
+
+  int get _hitWindowMs =>
+      (60000 / _tempoBpm * 0.3).round().clamp(80, 200).toInt();
+  int get _perfectWindowMs =>
+      (60000 / _tempoBpm * 0.1).round().clamp(40, 80).toInt();
+  int get _approvalPercent =>
+      _notes.isEmpty ? 0 : (_correctHits * 100 / _notes.length).round();
 
   @override
   void initState() {
@@ -60,8 +72,10 @@ class _PantallaRitmoState extends ConsumerState<PantallaRitmo> {
     final exercise = lastEx;
     if (exercise != null && mounted) {
       final rawNotes = exercise['notas'] as List<dynamic>? ?? [];
-      final savedTempo = exercise['tempo_bpm'] ?? (rawNotes.isEmpty ? null : rawNotes.first['tempo_bpm']);
-      
+      final savedTempo =
+          exercise['tempo_bpm'] ??
+          (rawNotes.isEmpty ? null : rawNotes.first['tempo_bpm']);
+
       setState(() {
         _loadedExerciseId = exercise['id']?.toString();
         _exerciseTitle = exercise['titulo']?.toString() ?? widget.titulo;
@@ -74,7 +88,7 @@ class _PantallaRitmoState extends ConsumerState<PantallaRitmo> {
             direction: noteMap['direction'] as String? ?? 'abajo',
           );
         }).toList();
-        
+
         // Ordenamos por tiempo por si acaso
         _notes.sort((a, b) => a.timeMs.compareTo(b.timeMs));
       });
@@ -84,11 +98,13 @@ class _PantallaRitmoState extends ConsumerState<PantallaRitmo> {
   void _startGame() {
     if (_notes.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No hay notas en esta lección. Graba una primero.')),
+        const SnackBar(
+          content: Text('No hay notas en esta lección. Graba una primero.'),
+        ),
       );
       return;
     }
-    
+
     setState(() {
       _isPlaying = true;
       _startTime = DateTime.now();
@@ -104,28 +120,40 @@ class _PantallaRitmoState extends ConsumerState<PantallaRitmo> {
       _feedbackColor = Colors.greenAccent;
     });
 
-    _gameLoop = Timer.periodic(const Duration(milliseconds: 16), (timer) { // ~60fps
+    ref.read(audioServiceProvider).playMetronome();
+    _metronomeTimer?.cancel();
+    _metronomeTimer = Timer.periodic(
+      Duration(milliseconds: 60000 ~/ _tempoBpm),
+      (_) {
+        if (_isPlaying) ref.read(audioServiceProvider).playMetronome();
+      },
+    );
+
+    _gameLoop = Timer.periodic(const Duration(milliseconds: 16), (timer) {
+      // ~60fps
       if (!mounted) {
         timer.cancel();
         return;
       }
-      
+
       final now = DateTime.now();
       setState(() {
         _elapsedMs = now.difference(_startTime!).inMilliseconds;
       });
 
       _checkMisses();
-      
+
       // Chequeo de fin de canción (última nota + 2 segundos)
       if (_notes.isNotEmpty && _elapsedMs > _notes.last.timeMs + 2000) {
         _finishGame();
       }
     });
   }
-  
+
   void _finishGame() async {
     _gameLoop?.cancel();
+    _metronomeTimer?.cancel();
+    ref.read(audioServiceProvider).stopMetronome();
     setState(() {
       _isPlaying = false;
       _isFinished = true;
@@ -136,18 +164,16 @@ class _PantallaRitmoState extends ConsumerState<PantallaRitmo> {
     // Guardar progreso usando ApiClient
     final api = ref.read(apiClientProvider);
     if (_loadedExerciseId != null) {
-        // Enviar puntuación (se puede calcular un porcentaje basado en las notas acertadas,
-        // por ahora mandamos el score base o un % calculado)
-        final porcentaje = _notes.isNotEmpty ? (_correctHits * 100 / _notes.length).round() : 0;
-        await api.guardarProgreso(_loadedExerciseId!, porcentaje);
+      // Enviar puntuación (se puede calcular un porcentaje basado en las notas acertadas,
+      // por ahora mandamos el score base o un % calculado)
+      await api.guardarProgreso(_loadedExerciseId!, _approvalPercent);
     }
   }
 
   void _checkMisses() {
     for (var note in _notes) {
       if (!note.hit && !note.missed) {
-        // Si el tiempo actual sobrepasó el tiempo de la nota + 300ms de tolerancia
-        if (_elapsedMs > note.timeMs + 300) {
+        if (_elapsedMs > note.timeMs + _hitWindowMs) {
           note.missed = true;
           _combo = 0;
           _showFeedback("¡FALLO!", Colors.grey);
@@ -159,38 +185,52 @@ class _PantallaRitmoState extends ConsumerState<PantallaRitmo> {
 
   void _onShake(DetectedMotion motion) {
     if (!_isPlaying) return;
-    
+
     final handString = motion.hand == HandSide.right ? 'derecha' : 'izquierda';
-    final directionString = motion.direction == MotionDirection.up ? 'arriba' : 'abajo';
-    
+    final directionString = motion.direction == MotionDirection.up
+        ? 'arriba'
+        : 'abajo';
+
     // Buscar la primera nota no hit/miss de esa mano
     NoteState? targetNote;
     for (var note in _notes) {
-        if (!note.hit && !note.missed && note.hand == handString &&
-            (targetNote == null || (note.timeMs - _elapsedMs).abs() < (targetNote.timeMs - _elapsedMs).abs())) {
+      if (!note.hit &&
+          !note.missed &&
+          note.hand == handString &&
+          (targetNote == null ||
+              (note.timeMs - _elapsedMs).abs() <
+                  (targetNote.timeMs - _elapsedMs).abs())) {
         targetNote = note;
       }
     }
-    
+
     if (targetNote != null) {
       final diff = (_elapsedMs - targetNote.timeMs).abs();
-      
-      if (diff <= 300 && targetNote.direction == directionString) {
+
+      if (diff <= _hitWindowMs && targetNote.direction == directionString) {
         // HIT!
         targetNote.hit = true;
         _combo++;
         _correctHits++;
         _score += 10 * _combo;
-        
+
         ref.read(audioServiceProvider).playHit();
-        
-        if (diff <= 100) {
+
+        if (diff <= _perfectWindowMs) {
           _showFeedback("¡PERFECTO!", const Color(0xFFFFD700));
         } else {
-          _showFeedback("¡BIEN!", motion.hand == HandSide.right ? const Color(0xFFFF0033) : const Color(0xFF0055FF));
+          _showFeedback(
+            "¡BIEN!",
+            motion.hand == HandSide.right
+                ? const Color(0xFFFF0033)
+                : const Color(0xFF0055FF),
+          );
         }
       } else if (diff <= 300) {
-        _showFeedback('DIRECCIÓN: ${targetNote.direction.toUpperCase()}', Colors.orangeAccent);
+        _showFeedback(
+          'DIRECCIÓN: ${targetNote.direction.toUpperCase()}',
+          Colors.orangeAccent,
+        );
       } else if (_elapsedMs < targetNote.timeMs - 300) {
         // Agitó demasiado temprano, pero si está muy lejos no penalizamos tanto visualmente, solo reseteamos combo
         // Aquí podríamos hacer lógica de Early Miss, pero lo mantenemos simple.
@@ -208,6 +248,8 @@ class _PantallaRitmoState extends ConsumerState<PantallaRitmo> {
   @override
   void dispose() {
     _gameLoop?.cancel();
+    _metronomeTimer?.cancel();
+    ref.read(audioServiceProvider).stopMetronome();
     super.dispose();
   }
 
@@ -217,16 +259,30 @@ class _PantallaRitmoState extends ConsumerState<PantallaRitmo> {
       backgroundColor: const Color(0xFF0C0C0C),
       appBar: AppBar(
         backgroundColor: const Color(0xFF0C0C0C),
-        title: Text(_exerciseTitle, maxLines: 1, overflow: TextOverflow.ellipsis),
+        title: Text(
+          _exerciseTitle,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
         leading: IconButton(
           icon: const Icon(Icons.close),
           onPressed: () {
             _gameLoop?.cancel();
+            _metronomeTimer?.cancel();
+            ref.read(audioServiceProvider).stopMetronome();
             context.pop();
           },
         ),
         actions: [
-          Center(child: Text('$_score pts  ', style: const TextStyle(color: Color(0xFFFFD700), fontWeight: FontWeight.w900))),
+          Center(
+            child: Text(
+              '$_score pts  ',
+              style: const TextStyle(
+                color: Color(0xFFFFD700),
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ),
         ],
       ),
       body: ListView(
@@ -245,10 +301,23 @@ class _PantallaRitmoState extends ConsumerState<PantallaRitmo> {
                     left: 10,
                     top: 10,
                     child: DecoratedBox(
-                      decoration: BoxDecoration(color: Colors.black.withOpacity(.7), borderRadius: BorderRadius.circular(6)),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(.7),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
                       child: const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 9, vertical: 6),
-                        child: Text('CÁMARA · DETECCIÓN DE MANOS', style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 9,
+                          vertical: 6,
+                        ),
+                        child: Text(
+                          'CÁMARA · DETECCIÓN DE MANOS',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ),
                     ),
                   ),
@@ -256,7 +325,13 @@ class _PantallaRitmoState extends ConsumerState<PantallaRitmo> {
                     Positioned(
                       right: 10,
                       top: 10,
-                      child: Text('COMBO $_combo', style: const TextStyle(color: Color(0xFFFFD700), fontWeight: FontWeight.w900)),
+                      child: Text(
+                        'COMBO $_combo',
+                        style: const TextStyle(
+                          color: Color(0xFFFFD700),
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
                     ),
                 ],
               ),
@@ -266,21 +341,51 @@ class _PantallaRitmoState extends ConsumerState<PantallaRitmo> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('PARTITURA DE LA LECCIÓN', style: TextStyle(color: Color(0xFFFFD700), fontWeight: FontWeight.w900, letterSpacing: 1)),
-              Text('$_tempoBpm BPM', style: const TextStyle(color: Colors.white70, fontSize: 12)),
+              const Text(
+                'PARTITURA DE LA LECCIÓN',
+                style: TextStyle(
+                  color: Color(0xFFFFD700),
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1,
+                ),
+              ),
+              Text(
+                '$_tempoBpm BPM',
+                style: const TextStyle(color: Colors.white70, fontSize: 12),
+              ),
             ],
           ),
           const SizedBox(height: 8),
-          LessonStaff(notes: _notes, bpm: _tempoBpm, currentMs: _isPlaying ? _elapsedMs : -1),
+          LessonStaff(
+            notes: _notes,
+            bpm: _tempoBpm,
+            currentMs: _isPlaying ? _elapsedMs : -1,
+          ),
           const SizedBox(height: 8),
-          const Text('Rojo: mano derecha   Azul: mano izquierda   ↑ / ↓: dirección del movimiento',
-              style: TextStyle(color: Colors.white70, fontSize: 11)),
+          const Text(
+            'Rojo: mano derecha   Azul: mano izquierda   ↑ / ↓: dirección del movimiento',
+            style: TextStyle(color: Colors.white70, fontSize: 11),
+          ),
           const SizedBox(height: 12),
           if (_isPlaying)
-            Text(_lastFeedback, textAlign: TextAlign.center, style: TextStyle(color: _feedbackColor, fontSize: 22, fontWeight: FontWeight.w900))
+            Text(
+              _lastFeedback,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: _feedbackColor,
+                fontSize: 22,
+                fontWeight: FontWeight.w900,
+              ),
+            )
           else if (_isFinished)
-            Text('LECCIÓN COMPLETADA · $_correctHits/${_notes.length} movimientos correctos',
-                textAlign: TextAlign.center, style: const TextStyle(color: Color(0xFFFFD700), fontWeight: FontWeight.w900)),
+            Text(
+              'LECCIÓN COMPLETADA · $_approvalPercent% · ${_approvalPercent >= 70 ? 'APROBADO' : 'SIGUE PRACTICANDO'}',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Color(0xFFFFD700),
+                fontWeight: FontWeight.w900,
+              ),
+            ),
           const SizedBox(height: 10),
           FilledButton.icon(
             style: FilledButton.styleFrom(
@@ -288,9 +393,14 @@ class _PantallaRitmoState extends ConsumerState<PantallaRitmo> {
               foregroundColor: Colors.black,
               padding: const EdgeInsets.symmetric(vertical: 14),
             ),
-            onPressed: _isPlaying ? null : (_isFinished ? () => context.pop() : _startGame),
+            onPressed: _isPlaying
+                ? null
+                : (_isFinished ? () => context.pop() : _startGame),
             icon: Icon(_isFinished ? Icons.check : Icons.play_arrow),
-            label: Text(_isFinished ? 'VOLVER A LECCIONES' : 'INICIAR LECCIÓN', style: const TextStyle(fontWeight: FontWeight.w900)),
+            label: Text(
+              _isFinished ? 'VOLVER A LECCIONES' : 'INICIAR LECCIÓN',
+              style: const TextStyle(fontWeight: FontWeight.w900),
+            ),
           ),
         ],
       ),

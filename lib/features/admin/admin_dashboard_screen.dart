@@ -8,12 +8,14 @@ class AdminDashboardScreen extends ConsumerStatefulWidget {
   const AdminDashboardScreen({super.key});
 
   @override
-  ConsumerState<AdminDashboardScreen> createState() => _AdminDashboardScreenState();
+  ConsumerState<AdminDashboardScreen> createState() =>
+      _AdminDashboardScreenState();
 }
 
-class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> with SingleTickerProviderStateMixin {
+class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen>
+    with SingleTickerProviderStateMixin {
   late AnimationController _glowController;
-  
+
   @override
   void initState() {
     super.initState();
@@ -51,7 +53,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> wit
               );
             },
           ),
-          
+
           ListView(
             padding: const EdgeInsets.only(bottom: 32),
             children: [
@@ -60,18 +62,18 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> wit
                 height: 250,
                 child: Stack(
                   children: [
-                    Positioned.fill(
-                      child: Container(
-                        color: deepBlack,
-                      ),
-                    ),
+                    Positioned.fill(child: Container(color: deepBlack)),
                     Positioned.fill(
                       child: DecoratedBox(
                         decoration: BoxDecoration(
                           gradient: LinearGradient(
                             begin: Alignment.topCenter,
                             end: Alignment.bottomCenter,
-                            colors: [Colors.transparent, deepBlack.withOpacity(0.6), deepBlack],
+                            colors: [
+                              Colors.transparent,
+                              deepBlack.withOpacity(0.6),
+                              deepBlack,
+                            ],
                           ),
                         ),
                       ),
@@ -84,7 +86,12 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> wit
                         children: [
                           Text(
                             'PANEL DE CONTROL',
-                            style: TextStyle(color: const Color(0xFFFFD700).withOpacity(0.8), fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 3),
+                            style: TextStyle(
+                              color: const Color(0xFFFFD700).withOpacity(0.8),
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 3,
+                            ),
                           ),
                           Text(
                             'Admin $userName',
@@ -92,24 +99,42 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> wit
                               color: Colors.white,
                               fontSize: 28,
                               fontWeight: FontWeight.w900,
-                              shadows: [Shadow(color: Colors.black87, offset: Offset(3, 3), blurRadius: 8)],
+                              shadows: [
+                                Shadow(
+                                  color: Colors.black87,
+                                  offset: Offset(3, 3),
+                                  blurRadius: 8,
+                                ),
+                              ],
                             ),
                           ),
                           const SizedBox(height: 4),
-                          Container(width: 48, height: 3, color: const Color(0xFFFFD700)),
+                          Container(
+                            width: 48,
+                            height: 3,
+                            color: const Color(0xFFFFD700),
+                          ),
                         ],
                       ),
-                    )
+                    ),
                   ],
                 ),
               ),
-              
+
               const SizedBox(height: 32),
 
               // HERRAMIENTAS ADMINISTRATIVAS
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: Text('HERRAMIENTAS', style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 2)),
+                child: Text(
+                  'HERRAMIENTAS',
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.4),
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 2,
+                  ),
+                ),
               ),
               const SizedBox(height: 14),
               Padding(
@@ -145,28 +170,53 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> wit
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('GESTIÓN DE MÓDULOS', style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 2)),
+                    Text(
+                      'GESTIÓN DE MÓDULOS',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.4),
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 2,
+                      ),
+                    ),
                     TextButton.icon(
                       onPressed: () => _showCreateModuleDialog(context, api),
-                      icon: const Icon(Icons.add, color: Color(0xFFFFD700), size: 16),
-                      label: const Text('Nuevo', style: TextStyle(color: Color(0xFFFFD700), fontSize: 11)),
+                      icon: const Icon(
+                        Icons.add,
+                        color: Color(0xFFFFD700),
+                        size: 16,
+                      ),
+                      label: const Text(
+                        'Nuevo',
+                        style: TextStyle(
+                          color: Color(0xFFFFD700),
+                          fontSize: 11,
+                        ),
+                      ),
                     ),
                   ],
                 ),
               ),
               const SizedBox(height: 14),
-              
+
               FutureBuilder<List<Map<String, dynamic>>>(
                 future: api.getModules(),
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator(color: Color(0xFFFFD700)));
+                    return const Center(
+                      child: CircularProgressIndicator(
+                        color: Color(0xFFFFD700),
+                      ),
+                    );
                   }
                   final modules = snapshot.data ?? [];
                   if (modules.isEmpty) {
                     return const Padding(
                       padding: EdgeInsets.symmetric(horizontal: 24),
-                      child: Text('No hay módulos creados.', style: TextStyle(color: Colors.white54)),
+                      child: Text(
+                        'No hay módulos creados.',
+                        style: TextStyle(color: Colors.white54),
+                      ),
                     );
                   }
                   return Column(
@@ -180,7 +230,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> wit
                           title: mod['name'] as String,
                           description: mod['description'] as String,
                           onTap: () {
-                            // Can show options to edit/delete in the future
+                            context.push('/module/${mod['id']}');
                           },
                         ),
                       );
@@ -195,41 +245,70 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> wit
     );
   }
 
-  Future<void> _showCreateModuleDialog(BuildContext context, ApiClient api) async {
+  Future<void> _showCreateModuleDialog(
+    BuildContext context,
+    ApiClient api,
+  ) async {
     final nameCtrl = TextEditingController();
     final descCtrl = TextEditingController();
     return showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF1A1A1A),
-        title: const Text('Crear Módulo', style: TextStyle(color: Colors.white)),
+        title: const Text(
+          'Crear Módulo',
+          style: TextStyle(color: Colors.white),
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
               controller: nameCtrl,
               style: const TextStyle(color: Colors.white),
-              decoration: const InputDecoration(labelText: 'Nombre', labelStyle: TextStyle(color: Colors.white54)),
+              decoration: const InputDecoration(
+                labelText: 'Nombre',
+                labelStyle: TextStyle(color: Colors.white54),
+              ),
             ),
             TextField(
               controller: descCtrl,
               style: const TextStyle(color: Colors.white),
-              decoration: const InputDecoration(labelText: 'Descripción', labelStyle: TextStyle(color: Colors.white54)),
+              decoration: const InputDecoration(
+                labelText: 'Descripción',
+                labelStyle: TextStyle(color: Colors.white54),
+              ),
             ),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar', style: TextStyle(color: Colors.white54))),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text(
+              'Cancelar',
+              style: TextStyle(color: Colors.white54),
+            ),
+          ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFFD700)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFFFD700),
+            ),
             onPressed: () async {
               if (nameCtrl.text.isNotEmpty) {
-                await api.createModule(nameCtrl.text.trim(), descCtrl.text.trim());
+                await api.createModule(
+                  nameCtrl.text.trim(),
+                  descCtrl.text.trim(),
+                );
                 if (mounted) setState(() {});
                 Navigator.pop(ctx);
               }
             },
-            child: const Text('Crear', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+            child: const Text(
+              'Crear',
+              style: TextStyle(
+                color: Colors.black,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
         ],
       ),
@@ -243,7 +322,12 @@ class _AdminActionCard extends StatelessWidget {
   final Color color;
   final VoidCallback onTap;
 
-  const _AdminActionCard({required this.icon, required this.label, required this.color, required this.onTap});
+  const _AdminActionCard({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -270,7 +354,15 @@ class _AdminActionCard extends StatelessWidget {
                 child: Icon(icon, color: color, size: 28),
               ),
               const SizedBox(height: 12),
-              Text(label, textAlign: TextAlign.center, style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 13, fontWeight: FontWeight.bold)),
+              Text(
+                label,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.9),
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ],
           ),
         ),
@@ -285,7 +377,12 @@ class _AdminModuleCard extends StatelessWidget {
   final String description;
   final VoidCallback onTap;
 
-  const _AdminModuleCard({required this.index, required this.title, required this.description, required this.onTap});
+  const _AdminModuleCard({
+    required this.index,
+    required this.title,
+    required this.description,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -319,12 +416,30 @@ class _AdminModuleCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold)),
-                  Text(description, style: TextStyle(color: Colors.white.withOpacity(0.45), fontSize: 12), maxLines: 1),
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Text(
+                    description,
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.45),
+                      fontSize: 12,
+                    ),
+                    maxLines: 1,
+                  ),
                 ],
               ),
             ),
-            Icon(Icons.more_vert, color: Colors.white.withOpacity(0.4), size: 20),
+            Icon(
+              Icons.more_vert,
+              color: Colors.white.withOpacity(0.4),
+              size: 20,
+            ),
           ],
         ),
       ),
@@ -339,12 +454,26 @@ class _AdminGlowPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final goldPaint = Paint()
-      ..shader = RadialGradient(
-        colors: [const Color(0xFFFFD700).withOpacity(pulseAlpha), Colors.transparent],
-      ).createShader(Rect.fromCircle(center: Offset(size.width * 0.5, size.height * 0.3), radius: size.width * 0.8));
-    canvas.drawCircle(Offset(size.width * 0.5, size.height * 0.3), size.width * 0.8, goldPaint);
+      ..shader =
+          RadialGradient(
+            colors: [
+              const Color(0xFFFFD700).withOpacity(pulseAlpha),
+              Colors.transparent,
+            ],
+          ).createShader(
+            Rect.fromCircle(
+              center: Offset(size.width * 0.5, size.height * 0.3),
+              radius: size.width * 0.8,
+            ),
+          );
+    canvas.drawCircle(
+      Offset(size.width * 0.5, size.height * 0.3),
+      size.width * 0.8,
+      goldPaint,
+    );
   }
 
   @override
-  bool shouldRepaint(covariant _AdminGlowPainter oldDelegate) => pulseAlpha != oldDelegate.pulseAlpha;
+  bool shouldRepaint(covariant _AdminGlowPainter oldDelegate) =>
+      pulseAlpha != oldDelegate.pulseAlpha;
 }

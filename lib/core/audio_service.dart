@@ -17,16 +17,22 @@ class AudioService {
     try {
       // Usamos sonidos públicos de prueba (como beeps y clics).
       // En producción, reemplazarías 'setUrl' por 'setAsset' (ej. setAsset('assets/audio/metronome.mp3'))
-      
+
       // Metrónomo (clic corto)
-      await _metronomePlayer.setUrl('https://actions.google.com/sounds/v1/impacts/wood_block_hit.ogg');
-      
+      await _metronomePlayer.setUrl(
+        'https://actions.google.com/sounds/v1/impacts/wood_block_hit.ogg',
+      );
+
       // Hit (campana o sonido agradable)
-      await _hitPlayer.setUrl('https://actions.google.com/sounds/v1/cartoon/cartoon_boing.ogg');
-      
+      await _hitPlayer.setUrl(
+        'https://actions.google.com/sounds/v1/cartoon/cartoon_boing.ogg',
+      );
+
       // Miss (sonido grave)
-      await _missPlayer.setUrl('https://actions.google.com/sounds/v1/cartoon/slip.ogg');
-      
+      await _missPlayer.setUrl(
+        'https://actions.google.com/sounds/v1/cartoon/slip.ogg',
+      );
+
       _isInitialized = true;
     } catch (e) {
       print("Error inicializando audio (posiblemente sin conexión): $e");
@@ -39,6 +45,14 @@ class AudioService {
       await _metronomePlayer.play();
     } catch (e) {
       // Ignorar si falla por red
+    }
+  }
+
+  Future<void> stopMetronome() async {
+    try {
+      await _metronomePlayer.stop();
+    } catch (_) {
+      // El reproductor puede no haberse inicializado todavía.
     }
   }
 

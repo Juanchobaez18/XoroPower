@@ -17,17 +17,20 @@ class _InstructionScreenState extends State<InstructionScreen> {
     {
       'icon': Icons.pan_tool_outlined,
       'title': 'La Sujeción',
-      'desc': 'Sujeta las maracas de forma natural. Mantén las muñecas sueltas para lograr un movimiento fluido al agitar.',
+      'desc':
+          'Sujeta las maracas de forma natural. Mantén las muñecas sueltas para lograr un movimiento fluido al agitar.',
     },
     {
       'icon': Icons.music_note_outlined,
       'title': 'Lectura de Notas',
-      'desc': 'Las notas caerán desde la parte superior. Las rojas son para tu mano derecha y las azules para tu mano izquierda.',
+      'desc':
+          'Las notas caerán desde la parte superior. Las rojas son para tu mano derecha y las azules para tu mano izquierda.',
     },
     {
       'icon': Icons.camera_front_outlined,
       'title': 'Frente a la Cámara',
-      'desc': 'Asegúrate de que la cámara te vea claramente. Cuando la nota llegue abajo, ¡agita la maraca correspondiente!',
+      'desc':
+          'Asegúrate de que la cámara te vea claramente. Cuando la nota llegue abajo, ¡agita la maraca correspondiente!',
     },
   ];
 
@@ -43,11 +46,31 @@ class _InstructionScreenState extends State<InstructionScreen> {
         centerTitle: true,
         title: RichText(
           text: const TextSpan(
-            style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, fontStyle: FontStyle.italic, shadows: [Shadow(color: Colors.black87, blurRadius: 8, offset: Offset(3, 3))]),
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w900,
+              fontStyle: FontStyle.italic,
+              shadows: [
+                Shadow(
+                  color: Colors.black87,
+                  blurRadius: 8,
+                  offset: Offset(3, 3),
+                ),
+              ],
+            ),
             children: [
-              TextSpan(text: 'XORO', style: TextStyle(color: AppColors.electricBlue)),
-              TextSpan(text: 'PO', style: TextStyle(color: AppColors.xoroWhite)),
-              TextSpan(text: 'WER', style: TextStyle(color: AppColors.brightRed)),
+              TextSpan(
+                text: 'XORO',
+                style: TextStyle(color: AppColors.electricBlue),
+              ),
+              TextSpan(
+                text: 'PO',
+                style: TextStyle(color: AppColors.xoroWhite),
+              ),
+              TextSpan(
+                text: 'WER',
+                style: TextStyle(color: AppColors.brightRed),
+              ),
             ],
           ),
         ),
@@ -69,7 +92,7 @@ class _InstructionScreenState extends State<InstructionScreen> {
               borderRadius: BorderRadius.circular(3),
             ),
           ),
-          
+
           Expanded(
             child: PageView.builder(
               physics: const NeverScrollableScrollPhysics(),
@@ -87,7 +110,10 @@ class _InstructionScreenState extends State<InstructionScreen> {
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           color: AppColors.electricBlue.withOpacity(0.1),
-                          border: Border.all(color: AppColors.electricBlue.withOpacity(0.3), width: 2),
+                          border: Border.all(
+                            color: AppColors.electricBlue.withOpacity(0.3),
+                            width: 2,
+                          ),
                         ),
                         child: Icon(
                           page['icon'] as IconData,
@@ -97,19 +123,32 @@ class _InstructionScreenState extends State<InstructionScreen> {
                       ),
                       const SizedBox(height: 48),
                       Text(
-                        'PASO \${index + 1}',
-                        style: const TextStyle(color: AppColors.electricBlue, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 2),
+                        'PASO ${index + 1}',
+                        style: const TextStyle(
+                          color: AppColors.electricBlue,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 2,
+                        ),
                       ),
                       const SizedBox(height: 8),
                       Text(
                         page['title'] as String,
-                        style: const TextStyle(color: AppColors.xoroWhite, fontSize: 28, fontWeight: FontWeight.w900),
+                        style: const TextStyle(
+                          color: AppColors.xoroWhite,
+                          fontSize: 28,
+                          fontWeight: FontWeight.w900,
+                        ),
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 16),
                       Text(
                         page['desc'] as String,
-                        style: TextStyle(color: AppColors.xoroWhite.withOpacity(0.6), fontSize: 16, height: 1.5),
+                        style: TextStyle(
+                          color: AppColors.xoroWhite.withOpacity(0.6),
+                          fontSize: 16,
+                          height: 1.5,
+                        ),
                         textAlign: TextAlign.center,
                       ),
                     ],
@@ -127,11 +166,15 @@ class _InstructionScreenState extends State<InstructionScreen> {
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.electricBlue,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
                 ),
                 onPressed: () {
                   if (isLastPage) {
-                    context.pushReplacement('/pantalla_ritmo?exerciseId=${widget.exerciseId}');
+                    context.pushReplacement(
+                      '/pantalla_ritmo?exerciseId=${widget.exerciseId}',
+                    );
                   } else {
                     setState(() {
                       _currentPage++;
@@ -143,12 +186,20 @@ class _InstructionScreenState extends State<InstructionScreen> {
                   children: [
                     Text(
                       isLastPage ? 'INICIAR EJERCICIO' : 'SIGUIENTE',
-                      style: const TextStyle(color: AppColors.xoroBlack, fontSize: 16, fontWeight: FontWeight.bold),
+                      style: const TextStyle(
+                        color: AppColors.xoroBlack,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     if (!isLastPage) ...[
                       const SizedBox(width: 8),
-                      const Icon(Icons.arrow_forward, color: AppColors.xoroBlack, size: 18),
-                    ]
+                      const Icon(
+                        Icons.arrow_forward,
+                        color: AppColors.xoroBlack,
+                        size: 18,
+                      ),
+                    ],
                   ],
                 ),
               ),

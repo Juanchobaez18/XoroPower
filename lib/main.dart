@@ -22,17 +22,13 @@ import 'core/api_client.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   try {
     await Supabase.initialize(
       url: 'https://yvmxgddtnokpaibcsnkv.supabase.co',
       anonKey: 'sb_publishable_OW6s1SF_Hbj1P2Fk0BXQVA_GfR5WkSC',
     );
-    runApp(
-      const ProviderScope(
-        child: XoroPowerApp(),
-      ),
-    );
+    runApp(const ProviderScope(child: XoroPowerApp()));
   } catch (e, stackTrace) {
     runApp(
       MaterialApp(
@@ -62,8 +58,9 @@ final goRouterProvider = Provider<GoRouter>((ref) {
     redirect: (context, state) {
       final isLoggedIn = apiClient.isAuthenticated;
       final location = state.matchedLocation;
-      
-      final isGoingToAuth = location == '/login' || location == '/register' || location == '/';
+
+      final isGoingToAuth =
+          location == '/login' || location == '/register' || location == '/';
 
       // If not logged in and not heading to auth screens, redirect to login
       if (!isLoggedIn && !isGoingToAuth) {
@@ -80,7 +77,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       if (isLoggedIn && !apiClient.isAdmin && isAdminRoute) {
         return '/dashboard';
       }
-      
+
       // RBAC: Admin trying to access student dashboard
       if (isLoggedIn && apiClient.isAdmin && location == '/dashboard') {
         return '/admin_dashboard';
@@ -89,21 +86,18 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       return null;
     },
     routes: [
-      GoRoute(
-        path: '/',
-        builder: (context, state) => const SplashScreen(),
-      ),
-      GoRoute(
-        path: '/login',
-        builder: (context, state) => const LoginScreen(),
-      ),
+      GoRoute(path: '/', builder: (context, state) => const SplashScreen()),
+      GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
       GoRoute(
         path: '/register',
         builder: (context, state) => const RegisterScreen(),
       ),
       GoRoute(
         path: '/admin_add_exercise',
-        builder: (context, state) => const AdminAddExerciseScreen(),
+        builder: (context, state) => AdminAddExerciseScreen(
+          exerciseId: state.uri.queryParameters['exerciseId'],
+          moduleId: state.uri.queryParameters['moduleId'],
+        ),
       ),
       GoRoute(
         path: '/pantalla_ritmo',
@@ -128,11 +122,13 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/admin_dashboard',
-        builder: (context, state) => const AppScaffold(child: AdminDashboardScreen()),
+        builder: (context, state) =>
+            const AppScaffold(child: AdminDashboardScreen()),
       ),
       GoRoute(
         path: '/admin_users',
-        builder: (context, state) => const AppScaffold(child: UsersListScreen()),
+        builder: (context, state) =>
+            const AppScaffold(child: UsersListScreen()),
       ),
       ShellRoute(
         builder: (context, state, child) => AppScaffold(child: child),

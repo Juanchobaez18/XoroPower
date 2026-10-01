@@ -9,43 +9,75 @@ import 'camera_view.dart';
 import 'lesson_staff.dart';
 
 class AdminAddExerciseScreen extends ConsumerStatefulWidget {
-  const AdminAddExerciseScreen({super.key});
+  final String? exerciseId;
+  final String? moduleId;
+
+  const AdminAddExerciseScreen({super.key, this.exerciseId, this.moduleId});
 
   @override
-  ConsumerState<AdminAddExerciseScreen> createState() => _AdminAddExerciseScreenState();
+  ConsumerState<AdminAddExerciseScreen> createState() =>
+      _AdminAddExerciseScreenState();
 }
 
-class _AdminAddExerciseScreenState extends ConsumerState<AdminAddExerciseScreen> {
+class _AdminAddExerciseScreenState
+    extends ConsumerState<AdminAddExerciseScreen> {
   final TextEditingController _titleController = TextEditingController();
-  
+
   bool _isRecording = false;
+  bool _isSaving = false;
   DateTime? _recordingStartTime;
   Timer? _metronomeTimer;
-  static const int _tempoBpm = 120;
-  
+  int _tempoBpm = 120;
+  static const List<int> _tempoOptions = [60, 80, 100, 120, 140, 160];
+
   final List<StaffNote> _recordedNotes = [];
-  
+
   String _lastActionText = "Listo para grabar";
   Color _statusColor = Colors.white;
 
   List<Map<String, dynamic>> _modules = [];
   String? _selectedModuleId;
+  bool _isEditing = false;
 
   @override
   void initState() {
     super.initState();
-    _loadModules();
+    _loadInitialData();
     ref.read(audioServiceProvider).init();
   }
 
-  Future<void> _loadModules() async {
+  Future<void> _loadInitialData() async {
     final api = ref.read(apiClientProvider);
     final modules = await api.getModules();
+    final exercise = widget.exerciseId == null
+        ? null
+        : await api.getExerciseById(widget.exerciseId!);
+    final rawNotes = exercise?['notas'] as List<dynamic>? ?? [];
+    final savedTempo =
+        exercise?['tempo_bpm'] ??
+        (rawNotes.isEmpty
+            ? null
+            : (rawNotes.first as Map<String, dynamic>)['tempo_bpm']);
     if (mounted) {
       setState(() {
         _modules = modules;
-        if (_modules.isNotEmpty) {
-          _selectedModuleId = _modules.first['id'] as String;
+        _isEditing = exercise != null;
+        _selectedModuleId =
+            exercise?['modulo_id']?.toString() ?? widget.moduleId;
+        if (_selectedModuleId == null && _modules.isNotEmpty) {
+          _selectedModuleId = _modules.first['id'].toString();
+        }
+        if (exercise != null) {
+          _titleController.text = exercise['titulo']?.toString() ?? '';
+          _recordedNotes
+            ..clear()
+            ..addAll(
+              rawNotes.map(
+                (note) =>
+                    StaffNote.fromJson(Map<String, dynamic>.from(note as Map)),
+              ),
+            );
+          _tempoBpm = (savedTempo as num?)?.toInt() ?? 120;
         }
       });
     }
@@ -60,18 +92,27 @@ class _AdminAddExerciseScreenState extends ConsumerState<AdminAddExerciseScreen>
 
   void _onShakeDetected(DetectedMotion motion) {
     if (!_isRecording || _recordingStartTime == null) return;
-    
-    final elapsedMs = DateTime.now().difference(_recordingStartTime!).inMilliseconds;
-    
+
+    final elapsedMs = DateTime.now()
+        .difference(_recordingStartTime!)
+        .inMilliseconds;
+
     setState(() {
-      _recordedNotes.add(StaffNote(
-        timeMs: elapsedMs,
-        hand: motion.hand == HandSide.right ? 'derecha' : 'izquierda',
-        direction: motion.direction == MotionDirection.up ? 'arriba' : 'abajo',
-      ));
-      
-      _lastActionText = '${motion.hand == HandSide.right ? 'DERECHA' : 'IZQUIERDA'} · ${motion.direction == MotionDirection.up ? 'ARRIBA' : 'ABAJO'}';
-      _statusColor = motion.hand == HandSide.right ? const Color(0xFFFF0033) : const Color(0xFF0055FF);
+      _recordedNotes.add(
+        StaffNote(
+          timeMs: elapsedMs,
+          hand: motion.hand == HandSide.right ? 'derecha' : 'izquierda',
+          direction: motion.direction == MotionDirection.up
+              ? 'arriba'
+              : 'abajo',
+        ),
+      );
+
+      _lastActionText =
+          '${motion.hand == HandSide.right ? 'DERECHA' : 'IZQUIERDA'} · ${motion.direction == MotionDirection.up ? 'ARRIBA' : 'ABAJO'}';
+      _statusColor = motion.hand == HandSide.right
+          ? const Color(0xFFFF0033)
+          : const Color(0xFF0055FF);
     });
 
     Future.delayed(const Duration(milliseconds: 300), () {
@@ -90,7 +131,9 @@ class _AdminAddExerciseScreenState extends ConsumerState<AdminAddExerciseScreen>
         // Detener grabación
         _isRecording = false;
         _metronomeTimer?.cancel();
-        _lastActionText = "Grabación detenida. ${_recordedNotes.length} notas capturadas.";
+        ref.read(audioServiceProvider).stopMetronome();
+        _lastActionText =
+            "Grabación detenida. ${_recordedNotes.length} notas capturadas.";
         _statusColor = Colors.white;
       } else {
         // Iniciar grabación
@@ -99,30 +142,58 @@ class _AdminAddExerciseScreenState extends ConsumerState<AdminAddExerciseScreen>
         _recordingStartTime = DateTime.now();
         _lastActionText = "Grabando... ¡Mueve tus manos!";
         _statusColor = Colors.greenAccent;
-        
-        // Iniciar metrónomo (120 BPM = 500ms)
-        _metronomeTimer = Timer.periodic(Duration(milliseconds: 60000 ~/ _tempoBpm), (timer) {
-          ref.read(audioServiceProvider).playMetronome();
-        });
+
+        ref.read(audioServiceProvider).playMetronome();
+        _metronomeTimer = Timer.periodic(
+          Duration(milliseconds: 60000 ~/ _tempoBpm),
+          (timer) {
+            ref.read(audioServiceProvider).playMetronome();
+          },
+        );
       }
     });
   }
 
+  void _changeTempo(int bpm) {
+    if (bpm == _tempoBpm) return;
+    final timeScale = _tempoBpm / bpm;
+    final rescaledNotes = _recordedNotes
+        .map(
+          (note) => StaffNote(
+            timeMs: (note.timeMs * timeScale).round(),
+            hand: note.hand,
+            direction: note.direction,
+          ),
+        )
+        .toList();
+    setState(() {
+      _tempoBpm = bpm;
+      _recordedNotes
+        ..clear()
+        ..addAll(rescaledNotes);
+    });
+  }
+
   Future<void> _saveExercise() async {
+    if (_isSaving) return;
     if (_titleController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Por favor, ingresa un título para la lección')),
+        const SnackBar(
+          content: Text('Por favor, ingresa un título para la lección'),
+        ),
       );
       return;
     }
-    
+
     if (_selectedModuleId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Por favor, selecciona o crea un módulo primero')),
+        const SnackBar(
+          content: Text('Por favor, selecciona o crea un módulo primero'),
+        ),
       );
       return;
     }
-    
+
     if (_recordedNotes.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('No has grabado ninguna nota aún')),
@@ -131,19 +202,34 @@ class _AdminAddExerciseScreenState extends ConsumerState<AdminAddExerciseScreen>
     }
 
     final api = ref.read(apiClientProvider);
-    
+    setState(() => _isSaving = true);
     try {
-      final notes = _recordedNotes.map((note) => note.toJson()..['tempo_bpm'] = _tempoBpm).toList();
-      await api.saveExercise({
+      final notes = _recordedNotes
+          .map((note) => note.toJson()..['tempo_bpm'] = _tempoBpm)
+          .toList();
+      final exercisePayload = {
         'titulo': _titleController.text.trim(),
         'modulo_id': _selectedModuleId,
         'notas': notes,
-        'creado_el': DateTime.now().toIso8601String(),
-      });
-      
+      };
+      if (_isEditing) {
+        await api.updateExercise(widget.exerciseId!, exercisePayload);
+      } else {
+        await api.saveExercise({
+          ...exercisePayload,
+          'creado_el': DateTime.now().toIso8601String(),
+        });
+      }
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('¡Lección guardada exitosamente!')),
+          SnackBar(
+            content: Text(
+              _isEditing
+                  ? 'Lección actualizada.'
+                  : '¡Lección guardada exitosamente!',
+            ),
+          ),
         );
         if (context.canPop()) {
           context.pop();
@@ -153,10 +239,12 @@ class _AdminAddExerciseScreenState extends ConsumerState<AdminAddExerciseScreen>
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al guardar: \$e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error al guardar: $e')));
       }
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
     }
   }
 
@@ -169,7 +257,7 @@ class _AdminAddExerciseScreenState extends ConsumerState<AdminAddExerciseScreen>
         backgroundColor: Colors.transparent,
         elevation: 0,
         title: const Text(
-          'Crear Lección (Motion Capture)',
+          'Lección y captura de movimientos',
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
         leading: IconButton(
@@ -186,141 +274,215 @@ class _AdminAddExerciseScreenState extends ConsumerState<AdminAddExerciseScreen>
       body: Stack(
         children: [
           // 1. Cámara en el fondo para ver nuestro propio cuerpo al grabar
-          Positioned.fill(
-            child: CameraView(onShake: _onShakeDetected),
-          ),
-          
+          Positioned.fill(child: CameraView(onShake: _onShakeDetected)),
+
           // 2. Filtro oscuro semi-transparente
           Positioned.fill(
-            child: Container(
-              color: Colors.black.withOpacity(0.5),
-            ),
+            child: Container(color: Colors.black.withOpacity(0.5)),
           ),
 
           // 3. UI de Controles Superpuestos
           SafeArea(
             child: SingleChildScrollView(
               child: Padding(
-              padding: const EdgeInsets.all(24.0),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Título del ejercicio
-                  TextField(
-                    controller: _titleController,
-                    style: const TextStyle(color: Colors.white, fontSize: 18),
-                    decoration: InputDecoration(
-                      hintText: 'Ej: Práctica de Joropo Básico',
-                      hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
-                      labelText: 'Título de la Lección',
-                      labelStyle: const TextStyle(color: Color(0xFFFFD700)),
-                      enabledBorder: const OutlineInputBorder(
-                        borderSide: BorderSide(color: Color(0xFFFFD700)),
-                      ),
-                      focusedBorder: const OutlineInputBorder(
-                        borderSide: BorderSide(color: Color(0xFFFFD700), width: 2),
-                      ),
-                      filled: true,
-                      fillColor: Colors.black.withOpacity(0.6),
-                    ),
-                  ),
-                  
-                  const SizedBox(height: 16),
-                  
-                  // Selector de Módulos
-                  if (_modules.isNotEmpty)
-                    DropdownButtonFormField<String>(
-                      value: _selectedModuleId,
-                      dropdownColor: Colors.black87,
-                      style: const TextStyle(color: Colors.white, fontSize: 16),
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Título del ejercicio
+                    TextField(
+                      controller: _titleController,
+                      style: const TextStyle(color: Colors.white, fontSize: 18),
                       decoration: InputDecoration(
-                        labelText: 'Asignar a Módulo',
+                        hintText: 'Ej: Práctica de Joropo Básico',
+                        hintStyle: TextStyle(
+                          color: Colors.white.withOpacity(0.5),
+                        ),
+                        labelText: 'Título de la Lección',
                         labelStyle: const TextStyle(color: Color(0xFFFFD700)),
                         enabledBorder: const OutlineInputBorder(
                           borderSide: BorderSide(color: Color(0xFFFFD700)),
                         ),
                         focusedBorder: const OutlineInputBorder(
-                          borderSide: BorderSide(color: Color(0xFFFFD700), width: 2),
+                          borderSide: BorderSide(
+                            color: Color(0xFFFFD700),
+                            width: 2,
+                          ),
                         ),
                         filled: true,
                         fillColor: Colors.black.withOpacity(0.6),
                       ),
-                      items: _modules.map((m) {
-                        return DropdownMenuItem<String>(
-                          value: m['id'] as String,
-                          child: Text(m['name'] as String),
-                        );
-                      }).toList(),
-                      onChanged: (val) {
-                        setState(() {
-                          _selectedModuleId = val;
-                        });
-                      },
-                    )
-                  else
-                    const Text('No hay módulos creados. Crea uno en el inicio.', style: TextStyle(color: Colors.redAccent)),
-                  
-                  const SizedBox(height: 18),
-
-                  LessonStaff(notes: _recordedNotes, bpm: _tempoBpm),
-                  const SizedBox(height: 12),
-                  
-                  // Indicador de estado central
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                    decoration: BoxDecoration(
-                      color: _statusColor.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(30),
-                      border: Border.all(color: _statusColor, width: 2),
                     ),
-                    child: Text(
-                      _lastActionText,
-                      style: TextStyle(
-                        color: _statusColor,
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        shadows: const [Shadow(color: Colors.black, blurRadius: 4)],
-                      ),
-                    ),
-                  ),
 
-                  const SizedBox(height: 18),
-                  
-                  // Botonera Inferior
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      // Botón Grabar / Detener
-                      FloatingActionButton.large(
-                        heroTag: 'record_btn',
-                        backgroundColor: _isRecording ? Colors.white : Colors.red,
-                        onPressed: _toggleRecording,
-                        child: Icon(
-                          _isRecording ? Icons.stop : Icons.fiber_manual_record,
-                          color: _isRecording ? Colors.red : Colors.white,
-                          size: 40,
+                    const SizedBox(height: 16),
+
+                    // Selector de Módulos
+                    if (_modules.isNotEmpty)
+                      DropdownButtonFormField<String>(
+                        value: _selectedModuleId,
+                        dropdownColor: Colors.black87,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
                         ),
+                        decoration: InputDecoration(
+                          labelText: 'Asignar a Módulo',
+                          labelStyle: const TextStyle(color: Color(0xFFFFD700)),
+                          enabledBorder: const OutlineInputBorder(
+                            borderSide: BorderSide(color: Color(0xFFFFD700)),
+                          ),
+                          focusedBorder: const OutlineInputBorder(
+                            borderSide: BorderSide(
+                              color: Color(0xFFFFD700),
+                              width: 2,
+                            ),
+                          ),
+                          filled: true,
+                          fillColor: Colors.black.withOpacity(0.6),
+                        ),
+                        items: _modules.map((m) {
+                          return DropdownMenuItem<String>(
+                            value: m['id'] as String,
+                            child: Text(m['name'] as String),
+                          );
+                        }).toList(),
+                        onChanged: (val) {
+                          setState(() {
+                            _selectedModuleId = val;
+                          });
+                        },
+                      )
+                    else
+                      const Text(
+                        'No hay módulos creados. Crea uno en el inicio.',
+                        style: TextStyle(color: Colors.redAccent),
                       ),
-                      
-                      // Botón Guardar
-                      if (!_isRecording && _recordedNotes.isNotEmpty)
-                        FloatingActionButton.extended(
-                          heroTag: 'save_btn',
-                          backgroundColor: const Color(0xFFFFD700),
-                          onPressed: _saveExercise,
-                          icon: const Icon(Icons.save, color: Colors.black),
-                          label: const Text(
-                            'Guardar\nLección',
-                            style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+
+                    const SizedBox(height: 18),
+
+                    DropdownButtonFormField<int>(
+                      value: _tempoBpm,
+                      dropdownColor: Colors.black87,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: const InputDecoration(
+                        labelText: 'Tempo del metrónomo (BPM)',
+                        labelStyle: TextStyle(color: Color(0xFFFFD700)),
+                        enabledBorder: OutlineInputBorder(
+                          borderSide: BorderSide(color: Color(0xFFFFD700)),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderSide: BorderSide(
+                            color: Color(0xFFFFD700),
+                            width: 2,
                           ),
                         ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                ],
+                        filled: true,
+                        fillColor: Color(0x99000000),
+                      ),
+                      items: _tempoOptions
+                          .map(
+                            (bpm) => DropdownMenuItem(
+                              value: bpm,
+                              child: Text('$bpm BPM'),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: _isRecording
+                          ? null
+                          : (bpm) {
+                              if (bpm != null) _changeTempo(bpm);
+                            },
+                    ),
+                    const SizedBox(height: 8),
+                    const Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Compás 4/4 · al cambiar el tempo, los movimientos conservan su posición en los pulsos.',
+                        style: TextStyle(color: Colors.white70, fontSize: 12),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
+                    LessonStaff(notes: _recordedNotes, bpm: _tempoBpm),
+                    const SizedBox(height: 12),
+
+                    // Indicador de estado central
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: _statusColor.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(30),
+                        border: Border.all(color: _statusColor, width: 2),
+                      ),
+                      child: Text(
+                        _lastActionText,
+                        style: TextStyle(
+                          color: _statusColor,
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          shadows: const [
+                            Shadow(color: Colors.black, blurRadius: 4),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 18),
+
+                    // Botonera Inferior
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        // Botón Grabar / Detener
+                        FloatingActionButton.large(
+                          heroTag: 'record_btn',
+                          backgroundColor: _isRecording
+                              ? Colors.white
+                              : Colors.red,
+                          onPressed: _toggleRecording,
+                          child: Icon(
+                            _isRecording
+                                ? Icons.stop
+                                : Icons.fiber_manual_record,
+                            color: _isRecording ? Colors.red : Colors.white,
+                            size: 40,
+                          ),
+                        ),
+
+                        // Botón Guardar
+                        if (!_isRecording && _recordedNotes.isNotEmpty)
+                          FloatingActionButton.extended(
+                            heroTag: 'save_btn',
+                            backgroundColor: const Color(0xFFFFD700),
+                            onPressed: _isSaving ? null : _saveExercise,
+                            icon: _isSaving
+                                ? const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.black,
+                                    ),
+                                  )
+                                : const Icon(Icons.save, color: Colors.black),
+                            label: const Text(
+                              'Guardar\nLección',
+                              style: TextStyle(
+                                color: Colors.black,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                  ],
+                ),
               ),
-            ),
             ),
           ),
         ],
