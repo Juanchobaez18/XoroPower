@@ -27,6 +27,9 @@ class NoteState extends StaffNote {
 
 class _PantallaRitmoState extends ConsumerState<PantallaRitmo> {
   List<NoteState> _notes = [];
+  bool _isLoadingExercise = true;
+  bool _isPreparingGame = false;
+  String? _exerciseLoadError;
   bool _isPlaying = false;
   bool _isFinished = false;
 
@@ -57,63 +60,113 @@ class _PantallaRitmoState extends ConsumerState<PantallaRitmo> {
   void initState() {
     super.initState();
     _loadExercise();
-    ref.read(audioServiceProvider).init();
   }
 
   Future<void> _loadExercise() async {
-    final api = ref.read(apiClientProvider);
-    final requested = widget.exerciseId;
-    Map<String, dynamic>? lastEx;
-    if (requested != null) {
-      lastEx = await api.getExerciseById(requested);
-    } else {
-      final exercises = await api.getExercises();
-      lastEx = exercises.isEmpty ? null : exercises.last;
-    }
-    final exercise = lastEx;
-    if (exercise != null && mounted) {
+    try {
+      final api = ref.read(apiClientProvider);
+      final requested = widget.exerciseId;
+      final Map<String, dynamic>? exercise;
+      if (requested != null) {
+        exercise = await api.getExerciseById(requested);
+      } else {
+        final exercises = await api.getExercises();
+        exercise = exercises.isEmpty ? null : exercises.last;
+      }
+      if (!mounted) return;
+      if (exercise == null) {
+        setState(() {
+          _exerciseLoadError = 'No se encontró el ejercicio solicitado.';
+          _isLoadingExercise = false;
+        });
+        return;
+      }
+
       final rawNotes =
           (exercise['notas'] ?? exercise['secuencia_notas']) as List<dynamic>? ??
           [];
       final firstNote = rawNotes.isEmpty
           ? null
           : Map<String, dynamic>.from(rawNotes.first as Map);
-      final rawTempo = exercise['tempo_bpm'] ?? firstNote?['tempo_bpm'];
+      final rawTempo =
+          firstNote?['tempo_bpm'] ??
+          exercise['tempo_bpm'] ??
+          exercise['tempoBpm'];
       final savedTempo = rawTempo is num
           ? rawTempo.toInt()
           : int.tryParse(rawTempo?.toString() ?? '');
 
-      setState(() {
-        _loadedExerciseId = exercise['id']?.toString();
-        _exerciseTitle = exercise['titulo']?.toString() ?? widget.titulo;
-        _tempoBpm = savedTempo != null && savedTempo > 0 ? savedTempo : 120;
-        _notes = rawNotes.map((n) {
-          final noteMap = Map<String, dynamic>.from(n as Map);
-          final parsedNote = StaffNote.fromJson(noteMap);
-          return NoteState(
-            timeMs: StaffNote.quantizeTimeMs(parsedNote.timeMs, _tempoBpm),
-            hand: parsedNote.hand,
-            direction: parsedNote.direction,
-          );
-        }).toList();
-
-        // Ordenamos por tiempo por si acaso
-        _notes.sort((a, b) => a.timeMs.compareTo(b.timeMs));
+      final tempo = savedTempo != null && savedTempo > 0 ? savedTempo : 120;
+      final notes = rawNotes.map((rawNote) {
+        final noteMap = Map<String, dynamic>.from(rawNote as Map);
+        final parsedNote = StaffNote.fromJson(noteMap);
+        return NoteState(
+          timeMs: StaffNote.quantizeTimeMs(parsedNote.timeMs, tempo),
+          hand: parsedNote.hand,
+          direction: parsedNote.direction,
+        );
+      }).toList();
+      notes.sort((a, b) {
+        final timeComparison = a.timeMs.compareTo(b.timeMs);
+        return timeComparison != 0
+            ? timeComparison
+            : a.hand.compareTo(b.hand);
       });
+      final loadedExercise = exercise!;
+      final loadedExerciseId = loadedExercise['id']?.toString();
+      final loadedExerciseTitle =
+          loadedExercise['titulo']?.toString() ?? widget.titulo;
+
+      setState(() {
+        _loadedExerciseId = loadedExerciseId;
+        _exerciseTitle = loadedExerciseTitle;
+        _tempoBpm = tempo;
+        _notes = notes;
+        _isLoadingExercise = false;
+      });
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _exerciseLoadError = 'No se pudo preparar el ejercicio: $error';
+          _isLoadingExercise = false;
+        });
+      }
     }
   }
 
-  void _startGame() {
+  Future<void> _startGame() async {
+    if (_isLoadingExercise) return;
+    if (_exerciseLoadError != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_exerciseLoadError!)),
+      );
+      return;
+    }
     if (_notes.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('No hay notas en esta lección. Graba una primero.'),
+          content: Text('Este ejercicio aún no tiene notas.'),
         ),
       );
       return;
     }
 
+    setState(() => _isPreparingGame = true);
+    try {
+      await ref.read(audioServiceProvider).init();
+    } catch (error) {
+      if (mounted) {
+        setState(() => _isPreparingGame = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('No se pudo iniciar el metrónomo: $error')),
+        );
+      }
+      return;
+    }
+    if (!mounted) return;
+
     setState(() {
+      _isPreparingGame = false;
       _isPlaying = true;
       _gameClock = Stopwatch()..start();
       _lastMetronomeBeat = 0;
@@ -263,7 +316,7 @@ class _PantallaRitmoState extends ConsumerState<PantallaRitmo> {
   }
 
   String _formatBeat(int timeMs) {
-    final beat = (timeMs / (60000 / _tempoBpm)).round();
+    final beat = StaffNote.beatIndexForTime(timeMs, _tempoBpm);
     return 'Compás ${beat ~/ 4 + 1} · pulso ${beat % 4 + 1}';
   }
 
@@ -410,6 +463,33 @@ class _PantallaRitmoState extends ConsumerState<PantallaRitmo> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(12, 8, 12, 20),
         children: [
+          if (_isLoadingExercise)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 14),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                  SizedBox(width: 10),
+                  Text(
+                    'Cargando ejercicio y partitura...',
+                    style: TextStyle(color: Colors.white70),
+                  ),
+                ],
+              ),
+            )
+          else if (_exerciseLoadError != null || _notes.isEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Text(
+                _exerciseLoadError ?? 'Este ejercicio todavía no tiene notas.',
+                style: const TextStyle(color: Colors.orangeAccent),
+              ),
+            ),
           SizedBox(
             height: 220,
             child: ClipRRect(
@@ -508,12 +588,25 @@ class _PantallaRitmoState extends ConsumerState<PantallaRitmo> {
               foregroundColor: Colors.black,
               padding: const EdgeInsets.symmetric(vertical: 14),
             ),
-            onPressed: _isPlaying
+            onPressed:
+                _isPlaying || _isLoadingExercise || _isPreparingGame
                 ? null
                 : (_isFinished ? () => context.pop() : _startGame),
-            icon: Icon(_isFinished ? Icons.check : Icons.play_arrow),
+            icon: Icon(
+              _isFinished
+                  ? Icons.check
+                  : _isLoadingExercise || _isPreparingGame
+                  ? Icons.hourglass_empty
+                  : Icons.play_arrow,
+            ),
             label: Text(
-              _isFinished ? 'VOLVER A LECCIONES' : 'INICIAR LECCIÓN',
+              _isFinished
+                  ? 'VOLVER A LECCIONES'
+                  : _isLoadingExercise
+                  ? 'CARGANDO EJERCICIO...'
+                  : _isPreparingGame
+                  ? 'PREPARANDO METRÓNOMO...'
+                  : 'INICIAR LECCIÓN',
               style: const TextStyle(fontWeight: FontWeight.w900),
             ),
           ),

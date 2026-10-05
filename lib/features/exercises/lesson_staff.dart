@@ -18,14 +18,31 @@ class StaffNote {
   });
 
   static int quantizeTimeMs(int timeMs, int bpm) {
+    return timeForBeat(beatIndexForTime(timeMs, bpm), bpm);
+  }
+
+  static int timeForBeat(int beatIndex, int bpm) {
+    if (bpm <= 0) {
+      throw ArgumentError.value(bpm, 'bpm', 'Debe ser mayor que cero.');
+    }
+    if (beatIndex < 0) {
+      throw ArgumentError.value(
+        beatIndex,
+        'beatIndex',
+        'No puede ser negativo.',
+      );
+    }
+    return (beatIndex * 60000 / bpm).round();
+  }
+
+  static int beatIndexForTime(int timeMs, int bpm) {
     if (bpm <= 0) {
       throw ArgumentError.value(bpm, 'bpm', 'Debe ser mayor que cero.');
     }
     if (timeMs < 0) {
       throw ArgumentError.value(timeMs, 'timeMs', 'No puede ser negativo.');
     }
-    final beatDurationMs = 60000 / bpm;
-    return ((timeMs / beatDurationMs).round() * beatDurationMs).round();
+    return (timeMs * bpm / 60000).round();
   }
 
   factory StaffNote.fromJson(Map<String, dynamic> json) {
@@ -68,7 +85,7 @@ class StaffNote {
   };
 }
 
-class LessonStaff extends StatelessWidget {
+class LessonStaff extends StatefulWidget {
   final List<StaffNote> notes;
   final int bpm;
   final int currentMs;
@@ -81,16 +98,55 @@ class LessonStaff extends StatelessWidget {
   });
 
   @override
+  State<LessonStaff> createState() => _LessonStaffState();
+}
+
+class _LessonStaffState extends State<LessonStaff> {
+  final ScrollController _scrollController = ScrollController();
+  bool _scrollPending = false;
+
+  void _scheduleCursorIntoView(double boardWidth, int bpm, int beatCount) {
+    if (widget.currentMs < 0 || _scrollPending) return;
+    _scrollPending = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scrollPending = false;
+      if (!mounted || !_scrollController.hasClients) return;
+
+      final position = _scrollController.position;
+      final staffStartX = 140.0;
+      final step =
+          (boardWidth - staffStartX - 24) / math.max(beatCount, 1);
+      final cursorX =
+          staffStartX + ((widget.currentMs / (60000 / bpm)) + .5) * step;
+      if (cursorX > position.pixels + position.viewportDimension - 80 &&
+          position.pixels < position.maxScrollExtent) {
+        final target = (cursorX - position.viewportDimension * .72)
+            .clamp(0.0, position.maxScrollExtent);
+        if ((target - position.pixels).abs() > 24) {
+          _scrollController.jumpTo(target);
+        }
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final safeBpm = bpm > 0 ? bpm : 120;
+    final safeBpm = widget.bpm > 0 ? widget.bpm : 120;
     final beatMs = 60000 / safeBpm;
-    final maxTimeMs = notes.fold<int>(
+    final maxTimeMs = widget.notes.fold<int>(
       0,
       (max, note) => max > note.timeMs ? max : note.timeMs,
     );
     final rawBeatCount = math.max(8, (maxTimeMs / beatMs).ceil() + 1);
     final int beatCount = ((rawBeatCount + 3) ~/ 4) * 4;
     final double boardWidth = math.max(1200.0, 168 + beatCount * 110.0);
+    _scheduleCursorIntoView(boardWidth, safeBpm, beatCount);
 
     return Container(
       height: 250,
@@ -101,13 +157,14 @@ class LessonStaff extends StatelessWidget {
       ),
       clipBehavior: Clip.antiAlias,
       child: SingleChildScrollView(
+        controller: _scrollController,
         scrollDirection: Axis.horizontal,
         child: CustomPaint(
           size: Size(boardWidth, 246),
           painter: _LessonStaffPainter(
-            notes: notes,
+            notes: widget.notes,
             bpm: safeBpm,
-            currentMs: currentMs,
+            currentMs: widget.currentMs,
             beatCount: beatCount,
           ),
         ),
@@ -220,7 +277,10 @@ class _LessonStaffPainter extends CustomPainter {
 
     final occupiedBeats = <String>{};
     for (final note in notes) {
-      final beat = (note.timeMs / beatMs).round().clamp(0, beatCount - 1);
+      final beat = StaffNote.beatIndexForTime(note.timeMs, bpm).clamp(
+        0,
+        beatCount - 1,
+      );
       occupiedBeats.add('$beat:${note.hand}');
     }
     for (var beat = 0; beat < beatCount; beat++) {
@@ -234,7 +294,10 @@ class _LessonStaffPainter extends CustomPainter {
     }
 
     for (final note in notes) {
-      final beat = (note.timeMs / beatMs).round().clamp(0, beatCount - 1);
+      final beat = StaffNote.beatIndexForTime(note.timeMs, bpm).clamp(
+        0,
+        beatCount - 1,
+      );
       final x = startX + (beat + .5) * step;
       final isRight = note.hand == 'derecha';
       final y = isRight ? 76.0 : 176.0;

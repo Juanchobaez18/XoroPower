@@ -25,11 +25,16 @@ class _AdminAddExerciseScreenState
 
   bool _isRecording = false;
   bool _isSaving = false;
+  bool _isPreparingRecording = false;
   Stopwatch? _recordingClock;
   Timer? _metronomeTimer;
   int _lastMetronomeBeat = -1;
   int _tempoBpm = 120;
   static const List<int> _tempoOptions = [60, 80, 100, 120, 140, 160];
+  int _selectedMeasure = 1;
+  int _selectedPulse = 1;
+  String _selectedHand = 'derecha';
+  String _selectedDirection = 'abajo';
 
   final List<StaffNote> _recordedNotes = [];
 
@@ -44,7 +49,6 @@ class _AdminAddExerciseScreenState
   void initState() {
     super.initState();
     _loadInitialData();
-    ref.read(audioServiceProvider).init();
   }
 
   Future<void> _loadInitialData() async {
@@ -60,7 +64,7 @@ class _AdminAddExerciseScreenState
     final firstNote = rawNotes.isEmpty
         ? null
         : Map<String, dynamic>.from(rawNotes.first as Map);
-    final rawTempo = exercise?['tempo_bpm'] ?? firstNote?['tempo_bpm'];
+    final rawTempo = firstNote?['tempo_bpm'] ?? exercise?['tempo_bpm'];
     final savedTempo = rawTempo is num
         ? rawTempo.toInt()
         : int.tryParse(rawTempo?.toString() ?? '');
@@ -122,7 +126,7 @@ class _AdminAddExerciseScreenState
               : 'abajo',
         ),
       );
-      _recordedNotes.sort((a, b) => a.timeMs.compareTo(b.timeMs));
+      _sortNotes();
 
       _lastActionText =
           '${motion.hand == HandSide.right ? 'DERECHA' : 'IZQUIERDA'} · ${motion.direction == MotionDirection.up ? 'ARRIBA' : 'ABAJO'}';
@@ -141,7 +145,26 @@ class _AdminAddExerciseScreenState
     });
   }
 
-  void _toggleRecording() {
+  Future<void> _toggleRecording() async {
+    if (_isPreparingRecording) return;
+    if (!_isRecording) {
+      setState(() => _isPreparingRecording = true);
+      try {
+        await ref.read(audioServiceProvider).init();
+      } catch (error) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('No se pudo iniciar el metrónomo: $error'),
+            ),
+          );
+        }
+        if (mounted) setState(() => _isPreparingRecording = false);
+        return;
+      }
+      if (!mounted) return;
+    }
+
     setState(() {
       if (_isRecording) {
         // Detener grabación
@@ -154,7 +177,7 @@ class _AdminAddExerciseScreenState
         _statusColor = Colors.white;
       } else {
         // Iniciar grabación
-        _recordedNotes.clear();
+        _isPreparingRecording = false;
         _isRecording = true;
         _recordingClock = Stopwatch()..start();
         _lastMetronomeBeat = 0;
@@ -198,7 +221,73 @@ class _AdminAddExerciseScreenState
       _recordedNotes
         ..clear()
         ..addAll(rescaledNotes);
+      _sortNotes();
     });
+  }
+
+  void _sortNotes() {
+    _recordedNotes.sort((a, b) {
+      final timeComparison = a.timeMs.compareTo(b.timeMs);
+      return timeComparison != 0
+          ? timeComparison
+          : a.hand.compareTo(b.hand);
+    });
+  }
+
+  void _addScheduledNote() {
+    final beatIndex = (_selectedMeasure - 1) * 4 + _selectedPulse - 1;
+    final timeMs = StaffNote.timeForBeat(beatIndex, _tempoBpm);
+    final existingIndex = _recordedNotes.indexWhere(
+      (note) => note.hand == _selectedHand && note.timeMs == timeMs,
+    );
+    final note = StaffNote(
+      timeMs: timeMs,
+      hand: _selectedHand,
+      direction: _selectedDirection,
+    );
+
+    setState(() {
+      if (existingIndex >= 0) {
+        _recordedNotes[existingIndex] = note;
+      } else {
+        _recordedNotes.add(note);
+      }
+      _sortNotes();
+      _lastActionText =
+          'Compás $_selectedMeasure · pulso $_selectedPulse · ${_selectedHand.toUpperCase()} ${_selectedDirection.toUpperCase()}';
+      _statusColor = _selectedHand == 'derecha'
+          ? const Color(0xFFFF0033)
+          : const Color(0xFF0055FF);
+    });
+  }
+
+  void _removeScheduledNote(StaffNote note) {
+    setState(() => _recordedNotes.remove(note));
+  }
+
+  Future<void> _confirmClearNotes() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Borrar notas del ejercicio'),
+        content: const Text(
+          'Se quitarán todas las notas de la partitura. Esta acción no se puede deshacer.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Borrar notas'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && mounted) {
+      setState(() => _recordedNotes.clear());
+    }
   }
 
   Future<void> _saveExercise() async {
@@ -223,7 +312,7 @@ class _AdminAddExerciseScreenState
 
     if (_recordedNotes.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No has grabado ninguna nota aún')),
+        const SnackBar(content: Text('Añade al menos una nota al ejercicio')),
       );
       return;
     }
@@ -273,6 +362,219 @@ class _AdminAddExerciseScreenState
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
+  }
+
+  Widget _buildNoteComposer() {
+    const accent = Color(0xFFFFD700);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.72),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: accent.withOpacity(0.45)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'CREAR NOTA EN EL PENTAGRAMA',
+            style: TextStyle(
+              color: accent,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0.8,
+            ),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Selecciona el compás, el pulso, la mano y la dirección. La nota queda guardada exactamente en ese pulso.',
+            style: TextStyle(color: Colors.white70, fontSize: 12, height: 1.4),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: DropdownButtonFormField<int>(
+                  value: _selectedMeasure,
+                  dropdownColor: const Color(0xFF171717),
+                  style: const TextStyle(color: Colors.white),
+                  decoration: const InputDecoration(
+                    labelText: 'Compás',
+                    labelStyle: TextStyle(color: Colors.white70),
+                    isDense: true,
+                    border: OutlineInputBorder(),
+                  ),
+                  items: List.generate(
+                    32,
+                    (index) => DropdownMenuItem(
+                      value: index + 1,
+                      child: Text('${index + 1}'),
+                    ),
+                  ),
+                  onChanged: _isRecording
+                      ? null
+                      : (value) {
+                          if (value != null) {
+                            setState(() => _selectedMeasure = value);
+                          }
+                        },
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: DropdownButtonFormField<int>(
+                  value: _selectedPulse,
+                  dropdownColor: const Color(0xFF171717),
+                  style: const TextStyle(color: Colors.white),
+                  decoration: const InputDecoration(
+                    labelText: 'Pulso (4/4)',
+                    labelStyle: TextStyle(color: Colors.white70),
+                    isDense: true,
+                    border: OutlineInputBorder(),
+                  ),
+                  items: List.generate(
+                    4,
+                    (index) => DropdownMenuItem(
+                      value: index + 1,
+                      child: Text('${index + 1}'),
+                    ),
+                  ),
+                  onChanged: _isRecording
+                      ? null
+                      : (value) {
+                          if (value != null) {
+                            setState(() => _selectedPulse = value);
+                          }
+                        },
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: DropdownButtonFormField<String>(
+                  value: _selectedHand,
+                  dropdownColor: const Color(0xFF171717),
+                  style: const TextStyle(color: Colors.white),
+                  decoration: const InputDecoration(
+                    labelText: 'Mano',
+                    labelStyle: TextStyle(color: Colors.white70),
+                    isDense: true,
+                    border: OutlineInputBorder(),
+                  ),
+                  items: const [
+                    DropdownMenuItem(
+                      value: 'derecha',
+                      child: Text('Derecha · roja'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'izquierda',
+                      child: Text('Izquierda · azul'),
+                    ),
+                  ],
+                  onChanged: _isRecording
+                      ? null
+                      : (value) {
+                          if (value != null) {
+                            setState(() => _selectedHand = value);
+                          }
+                        },
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: DropdownButtonFormField<String>(
+                  value: _selectedDirection,
+                  dropdownColor: const Color(0xFF171717),
+                  style: const TextStyle(color: Colors.white),
+                  decoration: const InputDecoration(
+                    labelText: 'Movimiento',
+                    labelStyle: TextStyle(color: Colors.white70),
+                    isDense: true,
+                    border: OutlineInputBorder(),
+                  ),
+                  items: const [
+                    DropdownMenuItem(
+                      value: 'abajo',
+                      child: Text('↓ Abajo'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'arriba',
+                      child: Text('↑ Arriba'),
+                    ),
+                  ],
+                  onChanged: _isRecording
+                      ? null
+                      : (value) {
+                          if (value != null) {
+                            setState(() => _selectedDirection = value);
+                          }
+                        },
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: _isRecording ? null : _addScheduledNote,
+              icon: const Icon(Icons.add),
+              label: const Text('Añadir / actualizar nota'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildScheduledNotesList() {
+    final notes = List<StaffNote>.of(_recordedNotes)
+      ..sort((a, b) {
+        final timeComparison = a.timeMs.compareTo(b.timeMs);
+        return timeComparison != 0
+            ? timeComparison
+            : a.hand.compareTo(b.hand);
+      });
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.58),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withOpacity(0.12)),
+      ),
+      child: Column(
+        children: notes.map((note) {
+          final beatIndex = StaffNote.beatIndexForTime(
+            note.timeMs,
+            _tempoBpm,
+          );
+          final handColor = note.hand == 'derecha'
+              ? const Color(0xFFFF5252)
+              : const Color(0xFF448AFF);
+          return ListTile(
+            dense: true,
+            leading: Icon(Icons.music_note, color: handColor),
+            title: Text(
+              'Compás ${beatIndex ~/ 4 + 1} · pulso ${beatIndex % 4 + 1}',
+              style: const TextStyle(color: Colors.white),
+            ),
+            subtitle: Text(
+              '${note.hand.toUpperCase()} · ${note.direction.toUpperCase()}',
+              style: TextStyle(color: handColor, fontSize: 11),
+            ),
+            trailing: IconButton(
+              tooltip: 'Quitar nota',
+              onPressed: _isRecording
+                  ? null
+                  : () => _removeScheduledNote(note),
+              icon: const Icon(Icons.delete_outline, color: Colors.white70),
+            ),
+          );
+        }).toList(),
+      ),
+    );
   }
 
   @override
@@ -430,7 +732,22 @@ class _AdminAddExerciseScreenState
                     ),
                     const SizedBox(height: 12),
 
+                    _buildNoteComposer(),
+                              if (_recordedNotes.isNotEmpty && !_isRecording)
+                                Align(
+                                  alignment: Alignment.centerRight,
+                                  child: TextButton.icon(
+                                    onPressed: _confirmClearNotes,
+                                    icon: const Icon(Icons.delete_sweep_outlined),
+                                    label: const Text('Borrar todas las notas'),
+                                  ),
+                                ),
+                              const SizedBox(height: 12),
                     LessonStaff(notes: _recordedNotes, bpm: _tempoBpm),
+                    if (_recordedNotes.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      _buildScheduledNotesList(),
+                    ],
                     const SizedBox(height: 12),
 
                     // Indicador de estado central
@@ -470,9 +787,13 @@ class _AdminAddExerciseScreenState
                           backgroundColor: _isRecording
                               ? Colors.white
                               : Colors.red,
-                          onPressed: _toggleRecording,
+                          onPressed: _isPreparingRecording
+                              ? null
+                              : _toggleRecording,
                           child: Icon(
-                            _isRecording
+                            _isPreparingRecording
+                                ? Icons.hourglass_empty
+                                : _isRecording
                                 ? Icons.stop
                                 : Icons.fiber_manual_record,
                             color: _isRecording ? Colors.red : Colors.white,
@@ -485,7 +806,9 @@ class _AdminAddExerciseScreenState
                           FloatingActionButton.extended(
                             heroTag: 'save_btn',
                             backgroundColor: const Color(0xFFFFD700),
-                            onPressed: _isSaving ? null : _saveExercise,
+                            onPressed: _isSaving || _isPreparingRecording
+                                ? null
+                                : _saveExercise,
                             icon: _isSaving
                                 ? const SizedBox(
                                     width: 20,

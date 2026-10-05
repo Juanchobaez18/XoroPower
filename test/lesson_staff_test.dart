@@ -9,6 +9,16 @@ void main() {
       expect(StaffNote.quantizeTimeMs(1120, 120), 1000);
     });
 
+    test('converts measure and pulse positions to playback timestamps', () {
+      final firstBeatOfSecondMeasure = StaffNote.timeForBeat(4, 120);
+      final thirdBeatOfThirdMeasure = StaffNote.timeForBeat(10, 80);
+
+      expect(firstBeatOfSecondMeasure, 2000);
+      expect(StaffNote.beatIndexForTime(firstBeatOfSecondMeasure, 120), 4);
+      expect(thirdBeatOfThirdMeasure, 7500);
+      expect(StaffNote.beatIndexForTime(thirdBeatOfThirdMeasure, 80), 10);
+    });
+
     test('reads both exercise JSON formats', () {
       final currentFormat = StaffNote.fromJson({
         'time_ms': 500,

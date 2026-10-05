@@ -24,13 +24,13 @@ class _InstructionScreenState extends State<InstructionScreen> {
       'icon': Icons.music_note_outlined,
       'title': 'Lectura de Notas',
       'desc':
-          'Las notas caerán desde la parte superior. Las rojas son para tu mano derecha y las azules para tu mano izquierda.',
+          'Sigue la partitura y el pulso del metrónomo. Las notas rojas indican la mano derecha y las azules la mano izquierda; la flecha muestra si el movimiento va arriba o abajo.',
     },
     {
       'icon': Icons.camera_front_outlined,
       'title': 'Frente a la Cámara',
       'desc':
-          'Asegúrate de que la cámara te vea claramente. Cuando la nota llegue abajo, ¡agita la maraca correspondiente!',
+          'Asegúrate de que la cámara te vea claramente. Ejecuta cada nota en su pulso, con la mano y la dirección que indica la partitura.',
     },
   ];
 

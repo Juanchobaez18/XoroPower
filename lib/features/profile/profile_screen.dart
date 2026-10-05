@@ -309,8 +309,8 @@ class _StudentExerciseCard extends StatelessWidget {
         )
         .toList();
     final rawTempo =
-        exercise['tempo_bpm'] ??
-        (rawNotes.isEmpty ? null : (rawNotes.first as Map)['tempo_bpm']);
+        (rawNotes.isEmpty ? null : (rawNotes.first as Map)['tempo_bpm']) ??
+        exercise['tempo_bpm'];
     final parsedTempo = rawTempo is num
         ? rawTempo.toInt()
         : int.tryParse(rawTempo?.toString() ?? '') ?? 120;
@@ -318,45 +318,52 @@ class _StudentExerciseCard extends StatelessWidget {
 
     return Card(
       color: const Color(0xFF0D0D0D),
-      margin: const EdgeInsets.only(bottom: 10),
-      child: ExpansionTile(
-        iconColor: const Color(0xFFFFD700),
-        collapsedIconColor: Colors.white70,
-        title: Text(
-          exercise['titulo']?.toString() ?? 'Ejercicio de ritmo',
-          style: const TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        subtitle: Text(
-          '${exercise['module_name']} · $tempo BPM · ${notes.length} movimientos',
-          style: const TextStyle(color: Colors.white60, fontSize: 12),
-        ),
-        childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
-        children: [
-          if (exercise['descripcion'] != null)
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Text(
-                  exercise['descripcion'].toString(),
-                  style: const TextStyle(color: Colors.white70),
-                ),
+      margin: const EdgeInsets.only(bottom: 14),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              exercise['titulo']?.toString() ?? 'Ejercicio de ritmo',
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
               ),
             ),
-          if (notes.isNotEmpty) LessonStaff(notes: notes, bpm: tempo),
-          const SizedBox(height: 10),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton.icon(
-              onPressed: () => context.push('/instructions/${exercise['id']}'),
-              icon: const Icon(Icons.play_arrow),
-              label: const Text('Ver e iniciar ejercicio'),
+            const SizedBox(height: 4),
+            Text(
+              '${exercise['module_name']} · $tempo BPM · ${notes.length} movimientos',
+              style: const TextStyle(color: Colors.white60, fontSize: 12),
             ),
-          ),
-        ],
+            if (exercise['descripcion'] != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                exercise['descripcion'].toString(),
+                style: const TextStyle(color: Colors.white70),
+              ),
+            ],
+            const SizedBox(height: 10),
+            if (notes.isNotEmpty)
+              LessonStaff(notes: notes, bpm: tempo)
+            else
+              const Text(
+                'Este ejercicio aún no tiene notas.',
+                style: TextStyle(color: Colors.orangeAccent),
+              ),
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: () =>
+                    context.push('/instructions/${exercise['id']}'),
+                icon: const Icon(Icons.play_arrow),
+                label: const Text('Iniciar ejercicio'),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

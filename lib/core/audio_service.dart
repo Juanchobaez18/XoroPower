@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
 
@@ -11,9 +12,14 @@ class AudioService {
   final AudioPlayer _missPlayer = AudioPlayer();
 
   bool _isInitialized = false;
+  Future<void>? _initialization;
 
-  Future<void> init() async {
-    if (_isInitialized) return;
+  Future<void> init() {
+    if (_isInitialized) return Future<void>.value();
+    return _initialization ??= _initialize();
+  }
+
+  Future<void> _initialize() async {
     try {
       // Usamos sonidos públicos de prueba (como beeps y clics).
       // En producción, reemplazarías 'setUrl' por 'setAsset' (ej. setAsset('assets/audio/metronome.mp3'))
@@ -35,7 +41,9 @@ class AudioService {
 
       _isInitialized = true;
     } catch (e) {
-      print("Error inicializando audio (posiblemente sin conexión): $e");
+      _initialization = null;
+      debugPrint('Error inicializando audio: $e');
+      rethrow;
     }
   }
 
