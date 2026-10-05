@@ -2,12 +2,41 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/api_client.dart';
+import '../exercises/lesson_staff.dart';
 
-class ProfileScreen extends ConsumerWidget {
+class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends ConsumerState<ProfileScreen> {
+  late Future<List<Map<String, dynamic>>> _studentExercises;
+
+  @override
+  void initState() {
+    super.initState();
+    _studentExercises = _loadStudentExercises();
+  }
+
+  Future<List<Map<String, dynamic>>> _loadStudentExercises() async {
+    final api = ref.read(apiClientProvider);
+    final modules = await api.getModules();
+    final exercises = await api.getExercises();
+    final moduleNames = {
+      for (final module in modules)
+        module['id'].toString(): module['name']?.toString() ?? 'Módulo',
+    };
+    return exercises.map((exercise) {
+      final moduleId = (exercise['modulo_id'] ?? exercise['module_id'])
+          ?.toString();
+      return {...exercise, 'module_name': moduleNames[moduleId] ?? 'Módulo'};
+    }).toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final api = ref.watch(apiClientProvider);
     final userName = api.currentName;
     final userEmail = api.currentEmail ?? 'correo@ejemplo.com';
@@ -45,7 +74,9 @@ class ProfileScreen extends ConsumerWidget {
             decoration: BoxDecoration(
               color: const Color(0xFF141414),
               borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: const Color(0xFF0055FF).withOpacity(0.12)),
+              border: Border.all(
+                color: const Color(0xFF0055FF).withOpacity(0.12),
+              ),
             ),
             child: Column(
               children: [
@@ -57,10 +88,13 @@ class ProfileScreen extends ConsumerWidget {
                     gradient: LinearGradient(
                       colors: [
                         const Color(0xFF0055FF).withOpacity(0.15),
-                        const Color(0xFF0055FF).withOpacity(0.3)
+                        const Color(0xFF0055FF).withOpacity(0.3),
                       ],
                     ),
-                    border: Border.all(color: const Color(0xFF0055FF).withOpacity(0.4), width: 2),
+                    border: Border.all(
+                      color: const Color(0xFF0055FF).withOpacity(0.4),
+                      width: 2,
+                    ),
                   ),
                   alignment: Alignment.center,
                   child: const Text('🤠', style: TextStyle(fontSize: 48)),
@@ -68,24 +102,42 @@ class ProfileScreen extends ConsumerWidget {
                 const SizedBox(height: 20),
                 Text(
                   userName,
-                  style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w900),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
                 Text(
                   userEmail,
-                  style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 14),
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.6),
+                    fontSize: 14,
+                  ),
                 ),
                 const SizedBox(height: 16),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
-                    color: esAdmin ? const Color(0xFFFFD700).withOpacity(0.12) : const Color(0xFF0055FF).withOpacity(0.12),
+                    color: esAdmin
+                        ? const Color(0xFFFFD700).withOpacity(0.12)
+                        : const Color(0xFF0055FF).withOpacity(0.12),
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: esAdmin ? const Color(0xFFFFD700).withOpacity(0.35) : const Color(0xFF0055FF).withOpacity(0.3)),
+                    border: Border.all(
+                      color: esAdmin
+                          ? const Color(0xFFFFD700).withOpacity(0.35)
+                          : const Color(0xFF0055FF).withOpacity(0.3),
+                    ),
                   ),
                   child: Text(
                     esAdmin ? 'ADMINISTRADOR' : 'ESTUDIANTE ACTIVO',
                     style: TextStyle(
-                      color: esAdmin ? const Color(0xFFFFD700) : const Color(0xFF0055FF),
+                      color: esAdmin
+                          ? const Color(0xFFFFD700)
+                          : const Color(0xFF0055FF),
                       fontSize: 10,
                       fontWeight: FontWeight.bold,
                     ),
@@ -97,9 +149,17 @@ class ProfileScreen extends ConsumerWidget {
           const SizedBox(height: 24),
 
           // Info Rows
-          _ProfileInfoRow(icon: Icons.person_outline, label: 'NOMBRE DE USUARIO', value: userName),
+          _ProfileInfoRow(
+            icon: Icons.person_outline,
+            label: 'NOMBRE DE USUARIO',
+            value: userName,
+          ),
           const SizedBox(height: 8),
-          _ProfileInfoRow(icon: Icons.mail_outline, label: 'CORREO ELECTRÓNICO', value: userEmail),
+          _ProfileInfoRow(
+            icon: Icons.mail_outline,
+            label: 'CORREO ELECTRÓNICO',
+            value: userEmail,
+          ),
           if (esAdmin) ...[
             const SizedBox(height: 8),
             const _ProfileInfoRow(
@@ -108,8 +168,61 @@ class ProfileScreen extends ConsumerWidget {
               value: 'Administrador — acceso completo a todos los niveles',
             ),
           ],
-          
+
           const SizedBox(height: 24),
+
+          if (!esAdmin) ...[
+            const Text(
+              'EJERCICIOS PLANTEADOS',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 1.5,
+              ),
+            ),
+            const SizedBox(height: 12),
+            FutureBuilder<List<Map<String, dynamic>>>(
+              future: _studentExercises,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (snapshot.hasError) {
+                  return Text(
+                    'No se pudieron cargar los ejercicios: ${snapshot.error}',
+                    style: const TextStyle(color: Colors.redAccent),
+                  );
+                }
+                final exercises = snapshot.data ?? [];
+                if (exercises.isEmpty) {
+                  return Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0D0D0D),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.05),
+                      ),
+                    ),
+                    child: const Text(
+                      'Aún no hay ejercicios planteados. Revisa las categorías para ver las lecciones disponibles.',
+                      style: TextStyle(color: Colors.white70, height: 1.4),
+                    ),
+                  );
+                }
+                return Column(
+                  children: exercises
+                      .map(
+                        (exercise) => _StudentExerciseCard(exercise: exercise),
+                      )
+                      .toList(),
+                );
+              },
+            ),
+            const SizedBox(height: 24),
+          ],
 
           if (esAdmin) ...[
             SizedBox(
@@ -118,10 +231,18 @@ class ProfileScreen extends ConsumerWidget {
               child: ElevatedButton.icon(
                 onPressed: () => context.push('/admin_add_exercise'),
                 icon: const Icon(Icons.add, color: Colors.black),
-                label: const Text('Crear Ejercicio', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+                label: const Text(
+                  'Crear Ejercicio',
+                  style: TextStyle(
+                    color: Colors.black,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFFFFD700),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
                 ),
               ),
             ),
@@ -135,7 +256,7 @@ class ProfileScreen extends ConsumerWidget {
             sub: 'Versión 1.0.0 Stable',
             color: Colors.white.withOpacity(0.5),
           ),
-          
+
           const SizedBox(height: 32),
 
           // Logout Button
@@ -147,10 +268,21 @@ class ProfileScreen extends ConsumerWidget {
                 api.logout();
               },
               icon: const Icon(Icons.logout, color: Color(0xFFF44336)),
-              label: const Text('Cerrar Sesión', style: TextStyle(color: Color(0xFFF44336), fontWeight: FontWeight.bold, fontSize: 15)),
+              label: const Text(
+                'Cerrar Sesión',
+                style: TextStyle(
+                  color: Color(0xFFF44336),
+                  fontWeight: FontWeight.bold,
+                  fontSize: 15,
+                ),
+              ),
               style: OutlinedButton.styleFrom(
-                side: BorderSide(color: const Color(0xFFF44336).withOpacity(0.25)),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                side: BorderSide(
+                  color: const Color(0xFFF44336).withOpacity(0.25),
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
               ),
             ),
           ),
@@ -161,12 +293,85 @@ class ProfileScreen extends ConsumerWidget {
   }
 }
 
+class _StudentExerciseCard extends StatelessWidget {
+  final Map<String, dynamic> exercise;
+
+  const _StudentExerciseCard({required this.exercise});
+
+  @override
+  Widget build(BuildContext context) {
+    final rawNotes =
+        (exercise['notas'] ?? exercise['secuencia_notas']) as List<dynamic>? ??
+        [];
+    final notes = rawNotes
+        .map(
+          (note) => StaffNote.fromJson(Map<String, dynamic>.from(note as Map)),
+        )
+        .toList();
+    final rawTempo =
+        exercise['tempo_bpm'] ??
+        (rawNotes.isEmpty ? null : (rawNotes.first as Map)['tempo_bpm']);
+    final parsedTempo = rawTempo is num
+        ? rawTempo.toInt()
+        : int.tryParse(rawTempo?.toString() ?? '') ?? 120;
+    final tempo = parsedTempo > 0 ? parsedTempo : 120;
+
+    return Card(
+      color: const Color(0xFF0D0D0D),
+      margin: const EdgeInsets.only(bottom: 10),
+      child: ExpansionTile(
+        iconColor: const Color(0xFFFFD700),
+        collapsedIconColor: Colors.white70,
+        title: Text(
+          exercise['titulo']?.toString() ?? 'Ejercicio de ritmo',
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        subtitle: Text(
+          '${exercise['module_name']} · $tempo BPM · ${notes.length} movimientos',
+          style: const TextStyle(color: Colors.white60, fontSize: 12),
+        ),
+        childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
+        children: [
+          if (exercise['descripcion'] != null)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Text(
+                  exercise['descripcion'].toString(),
+                  style: const TextStyle(color: Colors.white70),
+                ),
+              ),
+            ),
+          if (notes.isNotEmpty) LessonStaff(notes: notes, bpm: tempo),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: () => context.push('/instructions/${exercise['id']}'),
+              icon: const Icon(Icons.play_arrow),
+              label: const Text('Ver e iniciar ejercicio'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _ProfileInfoRow extends StatelessWidget {
   final IconData icon;
   final String label;
   final String value;
-  
-  const _ProfileInfoRow({required this.icon, required this.label, required this.value});
+
+  const _ProfileInfoRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -188,11 +393,20 @@ class _ProfileInfoRow extends StatelessWidget {
               children: [
                 Text(
                   label,
-                  style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1),
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.5),
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1,
+                  ),
                 ),
                 Text(
                   value,
-                  style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ],
             ),
@@ -209,7 +423,12 @@ class _ProfileMenuRow extends StatelessWidget {
   final String sub;
   final Color color;
 
-  const _ProfileMenuRow({required this.icon, required this.label, required this.sub, required this.color});
+  const _ProfileMenuRow({
+    required this.icon,
+    required this.label,
+    required this.sub,
+    required this.color,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -231,16 +450,27 @@ class _ProfileMenuRow extends StatelessWidget {
               children: [
                 Text(
                   label,
-                  style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
                 Text(
                   sub,
-                  style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12),
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.5),
+                    fontSize: 12,
+                  ),
                 ),
               ],
             ),
           ),
-          Icon(Icons.chevron_right, color: Colors.white.withOpacity(0.1), size: 16),
+          Icon(
+            Icons.chevron_right,
+            color: Colors.white.withOpacity(0.1),
+            size: 16,
+          ),
         ],
       ),
     );

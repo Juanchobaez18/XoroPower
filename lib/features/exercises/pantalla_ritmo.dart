@@ -30,10 +30,10 @@ class _PantallaRitmoState extends ConsumerState<PantallaRitmo> {
   bool _isPlaying = false;
   bool _isFinished = false;
 
-  DateTime? _startTime;
+  Stopwatch? _gameClock;
   int _elapsedMs = 0;
   Timer? _gameLoop;
-  Timer? _metronomeTimer;
+  int _lastMetronomeBeat = -1;
 
   int _score = 0;
   int _combo = 0;
@@ -72,21 +72,28 @@ class _PantallaRitmoState extends ConsumerState<PantallaRitmo> {
     }
     final exercise = lastEx;
     if (exercise != null && mounted) {
-      final rawNotes = exercise['notas'] as List<dynamic>? ?? [];
-      final savedTempo =
-          exercise['tempo_bpm'] ??
-          (rawNotes.isEmpty ? null : rawNotes.first['tempo_bpm']);
+      final rawNotes =
+          (exercise['notas'] ?? exercise['secuencia_notas']) as List<dynamic>? ??
+          [];
+      final firstNote = rawNotes.isEmpty
+          ? null
+          : Map<String, dynamic>.from(rawNotes.first as Map);
+      final rawTempo = exercise['tempo_bpm'] ?? firstNote?['tempo_bpm'];
+      final savedTempo = rawTempo is num
+          ? rawTempo.toInt()
+          : int.tryParse(rawTempo?.toString() ?? '');
 
       setState(() {
         _loadedExerciseId = exercise['id']?.toString();
         _exerciseTitle = exercise['titulo']?.toString() ?? widget.titulo;
-        _tempoBpm = (savedTempo as num?)?.toInt() ?? 120;
+        _tempoBpm = savedTempo != null && savedTempo > 0 ? savedTempo : 120;
         _notes = rawNotes.map((n) {
-          final noteMap = n as Map<String, dynamic>;
+          final noteMap = Map<String, dynamic>.from(n as Map);
+          final parsedNote = StaffNote.fromJson(noteMap);
           return NoteState(
-            timeMs: (noteMap['time_ms'] as num).toInt(),
-            hand: noteMap['hand'] as String,
-            direction: noteMap['direction'] as String? ?? 'abajo',
+            timeMs: StaffNote.quantizeTimeMs(parsedNote.timeMs, _tempoBpm),
+            hand: parsedNote.hand,
+            direction: parsedNote.direction,
           );
         }).toList();
 
@@ -108,7 +115,8 @@ class _PantallaRitmoState extends ConsumerState<PantallaRitmo> {
 
     setState(() {
       _isPlaying = true;
-      _startTime = DateTime.now();
+      _gameClock = Stopwatch()..start();
+      _lastMetronomeBeat = 0;
       _score = 0;
       _combo = 0;
       _correctHits = 0;
@@ -123,13 +131,6 @@ class _PantallaRitmoState extends ConsumerState<PantallaRitmo> {
     });
 
     ref.read(audioServiceProvider).playMetronome();
-    _metronomeTimer?.cancel();
-    _metronomeTimer = Timer.periodic(
-      Duration(milliseconds: 60000 ~/ _tempoBpm),
-      (_) {
-        if (_isPlaying) ref.read(audioServiceProvider).playMetronome();
-      },
-    );
 
     _gameLoop = Timer.periodic(const Duration(milliseconds: 16), (timer) {
       // ~60fps
@@ -138,9 +139,14 @@ class _PantallaRitmoState extends ConsumerState<PantallaRitmo> {
         return;
       }
 
-      final now = DateTime.now();
+      final elapsedMs = _gameClock!.elapsedMilliseconds;
+      final currentBeat = (elapsedMs / (60000 / _tempoBpm)).floor();
+      if (currentBeat > _lastMetronomeBeat) {
+        ref.read(audioServiceProvider).playMetronome();
+        _lastMetronomeBeat = currentBeat;
+      }
       setState(() {
-        _elapsedMs = now.difference(_startTime!).inMilliseconds;
+        _elapsedMs = elapsedMs;
       });
 
       _checkMisses();
@@ -154,7 +160,7 @@ class _PantallaRitmoState extends ConsumerState<PantallaRitmo> {
 
   void _finishGame() async {
     _gameLoop?.cancel();
-    _metronomeTimer?.cancel();
+    _gameClock?.stop();
     ref.read(audioServiceProvider).stopMetronome();
     setState(() {
       _isPlaying = false;
@@ -187,6 +193,7 @@ class _PantallaRitmoState extends ConsumerState<PantallaRitmo> {
 
   void _onShake(DetectedMotion motion) {
     if (!_isPlaying) return;
+    final currentMs = _gameClock?.elapsedMilliseconds ?? _elapsedMs;
 
     final handString = motion.hand == HandSide.right ? 'derecha' : 'izquierda';
     final directionString = motion.direction == MotionDirection.up
@@ -200,14 +207,14 @@ class _PantallaRitmoState extends ConsumerState<PantallaRitmo> {
           !note.missed &&
           note.hand == handString &&
           (targetNote == null ||
-              (note.timeMs - _elapsedMs).abs() <
-                  (targetNote.timeMs - _elapsedMs).abs())) {
+              (note.timeMs - currentMs).abs() <
+                  (targetNote.timeMs - currentMs).abs())) {
         targetNote = note;
       }
     }
 
     if (targetNote != null) {
-      final diff = (_elapsedMs - targetNote.timeMs).abs();
+      final diff = (currentMs - targetNote.timeMs).abs();
 
       if (diff <= _hitWindowMs && targetNote.direction == directionString) {
         // HIT!
@@ -229,20 +236,27 @@ class _PantallaRitmoState extends ConsumerState<PantallaRitmo> {
           );
         }
       } else if (diff <= 300) {
-        _movementIssues.add(
-          '${_formatBeat(targetNote.timeMs)} · ${handString.toUpperCase()} hizo ${directionString.toUpperCase()}, se esperaba ${targetNote.direction.toUpperCase()}.',
-        );
-        _showFeedback(
-          'DIRECCIÓN: ${targetNote.direction.toUpperCase()}',
-          Colors.orangeAccent,
-        );
-      } else if (_elapsedMs < targetNote.timeMs - 300) {
+        if (targetNote.direction != directionString) {
+          _movementIssues.add(
+            '${_formatBeat(targetNote.timeMs)} · ${handString.toUpperCase()} hizo ${directionString.toUpperCase()}, se esperaba ${targetNote.direction.toUpperCase()}.',
+          );
+          _showFeedback(
+            'DIRECCIÓN: ${targetNote.direction.toUpperCase()}',
+            Colors.orangeAccent,
+          );
+        } else {
+          _movementIssues.add(
+            '${_formatBeat(targetNote.timeMs)} · ${handString.toUpperCase()} llegó fuera del pulso.',
+          );
+          _showFeedback('FUERA DE TIEMPO', Colors.orangeAccent);
+        }
+      } else if (currentMs < targetNote.timeMs - 300) {
         // Agitó demasiado temprano, pero si está muy lejos no penalizamos tanto visualmente, solo reseteamos combo
         // Aquí podríamos hacer lógica de Early Miss, pero lo mantenemos simple.
       }
     } else {
       _movementIssues.add(
-        '${_formatBeat(_elapsedMs)} · Movimiento extra: ${handString.toUpperCase()} ${directionString.toUpperCase()}, sin golpe esperado.',
+        '${_formatBeat(currentMs)} · Movimiento extra: ${handString.toUpperCase()} ${directionString.toUpperCase()}, sin golpe esperado.',
       );
       _showFeedback('MOVIMIENTO NO ESPERADO', Colors.orangeAccent);
     }
@@ -356,7 +370,7 @@ class _PantallaRitmoState extends ConsumerState<PantallaRitmo> {
   @override
   void dispose() {
     _gameLoop?.cancel();
-    _metronomeTimer?.cancel();
+    _gameClock?.stop();
     ref.read(audioServiceProvider).stopMetronome();
     super.dispose();
   }
@@ -376,7 +390,7 @@ class _PantallaRitmoState extends ConsumerState<PantallaRitmo> {
           icon: const Icon(Icons.close),
           onPressed: () {
             _gameLoop?.cancel();
-            _metronomeTimer?.cancel();
+            _gameClock?.stop();
             ref.read(audioServiceProvider).stopMetronome();
             context.pop();
           },

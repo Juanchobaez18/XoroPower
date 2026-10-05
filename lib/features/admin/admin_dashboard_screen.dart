@@ -15,10 +15,12 @@ class AdminDashboardScreen extends ConsumerStatefulWidget {
 class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen>
     with SingleTickerProviderStateMixin {
   late AnimationController _glowController;
+  late Future<List<Map<String, dynamic>>> _modulesFuture;
 
   @override
   void initState() {
     super.initState();
+    _modulesFuture = ref.read(apiClientProvider).getModules();
     _glowController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 3000),
@@ -200,12 +202,21 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen>
               const SizedBox(height: 14),
 
               FutureBuilder<List<Map<String, dynamic>>>(
-                future: api.getModules(),
+                future: _modulesFuture,
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(
                       child: CircularProgressIndicator(
                         color: Color(0xFFFFD700),
+                      ),
+                    );
+                  }
+                  if (snapshot.hasError) {
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      child: Text(
+                        'No se pudieron cargar los módulos: ${snapshot.error}',
+                        style: const TextStyle(color: Colors.redAccent),
                       ),
                     );
                   }
@@ -221,17 +232,18 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen>
                   }
                   return Column(
                     children: modules.asMap().entries.map((entry) {
-                      final idx = entry.key + 1;
                       final mod = entry.value;
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 12),
                         child: _AdminModuleCard(
-                          index: idx,
                           title: mod['name'] as String,
-                          description: mod['description'] as String,
+                          description: mod['description']?.toString() ?? '',
                           onTap: () {
                             context.push('/module/${mod['id']}');
                           },
+                          onEdit: () =>
+                              _showModuleDialog(context, api, module: mod),
+                          onDelete: () => _deleteModule(context, api, mod),
                         ),
                       );
                     }).toList(),
@@ -245,18 +257,26 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen>
     );
   }
 
-  Future<void> _showCreateModuleDialog(
+  Future<void> _showCreateModuleDialog(BuildContext context, ApiClient api) =>
+      _showModuleDialog(context, api);
+
+  Future<void> _showModuleDialog(
     BuildContext context,
-    ApiClient api,
-  ) async {
-    final nameCtrl = TextEditingController();
-    final descCtrl = TextEditingController();
-    return showDialog(
+    ApiClient api, {
+    Map<String, dynamic>? module,
+  }) async {
+    final nameCtrl = TextEditingController(
+      text: module?['name']?.toString() ?? '',
+    );
+    final descCtrl = TextEditingController(
+      text: module?['description']?.toString() ?? '',
+    );
+    final saved = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF1A1A1A),
-        title: const Text(
-          'Crear Módulo',
+        title: Text(
+          module == null ? 'Crear Módulo' : 'Editar Módulo',
           style: TextStyle(color: Colors.white),
         ),
         content: Column(
@@ -293,17 +313,34 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen>
               backgroundColor: const Color(0xFFFFD700),
             ),
             onPressed: () async {
-              if (nameCtrl.text.isNotEmpty) {
-                await api.createModule(
-                  nameCtrl.text.trim(),
-                  descCtrl.text.trim(),
+              final name = nameCtrl.text.trim();
+              if (name.isEmpty) {
+                ScaffoldMessenger.of(ctx).showSnackBar(
+                  const SnackBar(content: Text('El nombre es obligatorio.')),
                 );
-                if (mounted) setState(() {});
-                Navigator.pop(ctx);
+                return;
+              }
+              try {
+                if (module == null) {
+                  await api.createModule(name, descCtrl.text.trim());
+                } else {
+                  await api.updateModule(
+                    module['id'].toString(),
+                    name,
+                    descCtrl.text.trim(),
+                  );
+                }
+                if (ctx.mounted) Navigator.pop(ctx, true);
+              } catch (error) {
+                if (ctx.mounted) {
+                  ScaffoldMessenger.of(ctx).showSnackBar(
+                    SnackBar(content: Text('No se pudo guardar: $error')),
+                  );
+                }
               }
             },
-            child: const Text(
-              'Crear',
+            child: Text(
+              module == null ? 'Crear' : 'Guardar',
               style: TextStyle(
                 color: Colors.black,
                 fontWeight: FontWeight.bold,
@@ -313,6 +350,62 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen>
         ],
       ),
     );
+    nameCtrl.dispose();
+    descCtrl.dispose();
+    if (saved == true && mounted) {
+      setState(() {
+        _modulesFuture = api.getModules();
+      });
+    }
+  }
+
+  Future<void> _deleteModule(
+    BuildContext context,
+    ApiClient api,
+    Map<String, dynamic> module,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A1A),
+        title: const Text(
+          'Eliminar módulo',
+          style: TextStyle(color: Colors.white),
+        ),
+        content: Text(
+          '¿Eliminar "${module['name'] ?? 'Módulo'}", todas sus lecciones y el progreso de los estudiantes? Esta acción no se puede deshacer.',
+          style: const TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Eliminar'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    try {
+      await api.deleteModule(module['id'].toString());
+      if (!context.mounted) return;
+      setState(() {
+        _modulesFuture = api.getModules();
+      });
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Módulo eliminado.')));
+    } catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('No se pudo eliminar: $error')));
+      }
+    }
   }
 }
 
@@ -372,16 +465,18 @@ class _AdminActionCard extends StatelessWidget {
 }
 
 class _AdminModuleCard extends StatelessWidget {
-  final int index;
   final String title;
   final String description;
   final VoidCallback onTap;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
 
   const _AdminModuleCard({
-    required this.index,
     required this.title,
     required this.description,
     required this.onTap,
+    required this.onEdit,
+    required this.onDelete,
   });
 
   @override
@@ -435,10 +530,21 @@ class _AdminModuleCard extends StatelessWidget {
                 ],
               ),
             ),
-            Icon(
-              Icons.more_vert,
-              color: Colors.white.withOpacity(0.4),
-              size: 20,
+            PopupMenuButton<String>(
+              tooltip: 'Gestionar módulo',
+              onSelected: (action) {
+                if (action == 'edit') onEdit();
+                if (action == 'delete') onDelete();
+              },
+              itemBuilder: (context) => const [
+                PopupMenuItem(value: 'edit', child: Text('Editar módulo')),
+                PopupMenuItem(value: 'delete', child: Text('Eliminar módulo')),
+              ],
+              icon: Icon(
+                Icons.more_vert,
+                color: Colors.white.withValues(alpha: 0.7),
+                size: 20,
+              ),
             ),
           ],
         ),

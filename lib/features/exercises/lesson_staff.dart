@@ -17,11 +17,49 @@ class StaffNote {
     this.missed = false,
   });
 
-  factory StaffNote.fromJson(Map<String, dynamic> json) => StaffNote(
-    timeMs: (json['time_ms'] as num).toInt(),
-    hand: json['hand'] as String? ?? 'derecha',
-    direction: json['direction'] as String? ?? 'abajo',
-  );
+  static int quantizeTimeMs(int timeMs, int bpm) {
+    if (bpm <= 0) {
+      throw ArgumentError.value(bpm, 'bpm', 'Debe ser mayor que cero.');
+    }
+    if (timeMs < 0) {
+      throw ArgumentError.value(timeMs, 'timeMs', 'No puede ser negativo.');
+    }
+    final beatDurationMs = 60000 / bpm;
+    return ((timeMs / beatDurationMs).round() * beatDurationMs).round();
+  }
+
+  factory StaffNote.fromJson(Map<String, dynamic> json) {
+    final rawTime = json['time_ms'] ?? json['ms'] ?? json['timeMs'];
+    final timeMs = rawTime is num
+        ? rawTime.toInt()
+        : int.tryParse(rawTime?.toString() ?? '');
+    if (timeMs == null) {
+      throw const FormatException('La nota no contiene un tiempo válido.');
+    }
+
+    final rawHand =
+        (json['hand'] ?? json['mano'] ?? json['color'] ?? 'derecha')
+            .toString()
+            .toLowerCase();
+    final hand = switch (rawHand) {
+      'izquierda' || 'left' || 'i' || 'azul' || 'blue' => 'izquierda',
+      'derecha' || 'right' || 'd' || 'rojo' || 'red' => 'derecha',
+      _ => throw FormatException('Mano no reconocida: $rawHand'),
+    };
+
+    final explicitDirection = json['direction'] ?? json['direccion'];
+    final rawDirection = (explicitDirection ?? json['texto'] ?? 'abajo')
+        .toString()
+        .toLowerCase();
+    final direction = switch (rawDirection) {
+      'arriba' || 'up' || '↑' => 'arriba',
+      'abajo' || 'down' || '↓' => 'abajo',
+      _ when explicitDirection == null => 'abajo',
+      _ => throw FormatException('Dirección no reconocida: $rawDirection'),
+    };
+
+    return StaffNote(timeMs: timeMs, hand: hand, direction: direction);
+  }
 
   Map<String, dynamic> toJson() => {
     'time_ms': timeMs,
@@ -44,14 +82,15 @@ class LessonStaff extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final beatMs = 60000 / bpm;
+    final safeBpm = bpm > 0 ? bpm : 120;
+    final beatMs = 60000 / safeBpm;
     final maxTimeMs = notes.fold<int>(
       0,
       (max, note) => max > note.timeMs ? max : note.timeMs,
     );
     final rawBeatCount = math.max(8, (maxTimeMs / beatMs).ceil() + 1);
     final int beatCount = ((rawBeatCount + 3) ~/ 4) * 4;
-    final double boardWidth = math.max(1200.0, 300 + beatCount * 110.0);
+    final double boardWidth = math.max(1200.0, 168 + beatCount * 110.0);
 
     return Container(
       height: 250,
@@ -67,7 +106,7 @@ class LessonStaff extends StatelessWidget {
           size: Size(boardWidth, 246),
           painter: _LessonStaffPainter(
             notes: notes,
-            bpm: bpm,
+            bpm: safeBpm,
             currentMs: currentMs,
             beatCount: beatCount,
           ),
@@ -97,11 +136,18 @@ class _LessonStaffPainter extends CustomPainter {
     final red = const Color(0xFFE53935);
     final blue = const Color(0xFF1E88E5);
     final linePaint = Paint()..strokeWidth = 1.5;
+    const staffLineStartX = 22.0;
+    const staffStartX = 140.0;
+    const staffEndInset = 24.0;
     for (var line = 0; line < 5; line++) {
       final y = 48.0 + line * 14;
       linePaint.color = line == 2 ? red.withOpacity(.82) : ink.withOpacity(.35);
       linePaint.strokeWidth = line == 2 ? 3 : 1.5;
-      canvas.drawLine(Offset(190, y), Offset(size.width - 24, y), linePaint);
+      canvas.drawLine(
+        Offset(staffLineStartX, y),
+        Offset(size.width - staffEndInset, y),
+        linePaint,
+      );
 
       final blueY = y + 100;
       linePaint.color = line == 2
@@ -109,29 +155,30 @@ class _LessonStaffPainter extends CustomPainter {
           : ink.withOpacity(.35);
       linePaint.strokeWidth = line == 2 ? 3 : 1.5;
       canvas.drawLine(
-        Offset(190, blueY),
-        Offset(size.width - 28, blueY),
+        Offset(staffLineStartX, blueY),
+        Offset(size.width - staffEndInset, blueY),
         linePaint,
       );
     }
 
     _drawText(canvas, 'PERCUSIÓN', const Offset(22, 15), 10, ink);
-    _drawText(canvas, '4', const Offset(42, 58), 30, ink);
-    _drawText(canvas, '4', const Offset(42, 88), 30, ink);
+    _drawPercussionClef(canvas, const Offset(35, 77), ink);
+    _drawPercussionClef(canvas, const Offset(35, 177), ink);
+    _drawText(canvas, '4', const Offset(68, 58), 30, ink);
+    _drawText(canvas, '4', const Offset(68, 88), 30, ink);
     canvas.drawLine(
-      const Offset(39, 85),
       const Offset(65, 85),
+      const Offset(91, 85),
       Paint()
         ..color = ink
         ..strokeWidth = 2.5,
     );
-    _drawText(canvas, 'D', const Offset(105, 65), 22, red);
+    _drawText(canvas, 'D', const Offset(108, 65), 22, red);
     _drawText(canvas, 'I', const Offset(108, 165), 22, blue);
-    _drawPercussionClef(canvas, const Offset(155, 77), ink);
-    _drawPercussionClef(canvas, const Offset(155, 177), ink);
 
-    final step = (size.width - 300) / math.max(beatCount, 1);
-    final startX = 190.0;
+    final step =
+        (size.width - staffStartX - staffEndInset) / math.max(beatCount, 1);
+    final startX = staffStartX;
     final endX = startX + beatCount * step;
     final beatMs = 60000 / bpm;
     final barPaint = Paint()
@@ -234,7 +281,7 @@ class _LessonStaffPainter extends CustomPainter {
     }
 
     if (currentMs >= 0) {
-      final cursorX = startX + (currentMs / beatMs) * step;
+      final cursorX = startX + ((currentMs / beatMs) + .5) * step;
       canvas.drawLine(
         Offset(cursorX, 42),
         Offset(cursorX, 220),

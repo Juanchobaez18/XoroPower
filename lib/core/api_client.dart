@@ -123,6 +123,40 @@ class ApiClient extends ChangeNotifier {
     }
   }
 
+  Future<void> updateModule(
+    String id,
+    String name,
+    String description,
+  ) async {
+    await init();
+    try {
+      final updated = await _supabase
+          .from('modules')
+          .update({'name': name, 'description': description})
+          .eq('id', id)
+          .select('id');
+      if (updated.isEmpty) {
+        throw StateError('Módulo no encontrado o sin permiso de edición.');
+      }
+    } catch (e) {
+      debugPrint('Error update module: $e');
+      throw Exception('Error al actualizar módulo: $e');
+    }
+  }
+
+  Future<void> deleteModule(String id) async {
+    await init();
+    try {
+      await _supabase.rpc(
+        'delete_module_with_content',
+        params: {'p_module_id': id},
+      );
+    } catch (e) {
+      debugPrint('Error delete module: $e');
+      throw Exception('No se pudo eliminar el módulo y su contenido: $e');
+    }
+  }
+
   // --- EXERCISES ---
   Future<void> saveExercise(Map<String, dynamic> exercisePayload) async {
     await init();

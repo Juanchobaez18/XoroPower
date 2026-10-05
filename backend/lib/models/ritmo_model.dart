@@ -15,11 +15,33 @@ class NotaRitmo {
   });
 
   factory NotaRitmo.fromJson(Map<String, dynamic> json) {
+    final rawMs = json['ms'] ?? json['time_ms'] ?? json['timeMs'];
+    final ms = rawMs is num
+        ? rawMs.toInt()
+        : int.tryParse(rawMs?.toString() ?? '');
+    if (ms == null) {
+      throw const FormatException('La nota no contiene un tiempo válido.');
+    }
+
+    final rawHand =
+        (json['mano'] ?? json['hand'] ?? json['color'] ?? 'derecha')
+            .toString();
+    final hand = switch (rawHand.toLowerCase()) {
+      'izquierda' || 'left' || 'i' || 'azul' || 'blue' => 'izquierda',
+      'derecha' || 'right' || 'd' || 'rojo' || 'red' => 'derecha',
+      _ => throw FormatException('Mano no reconocida: $rawHand'),
+    };
+    final rawColor = json['color']?.toString();
+    final rawDirection =
+        json['texto'] ?? json['direction'] ?? json['direccion'];
+
     return NotaRitmo(
-      ms: json['ms'] as int,
-      mano: json['mano'] as String,
-      color: json['color'] as String,
-      texto: json['texto'] as String?,
+      ms: ms,
+      mano: hand,
+      color:
+          rawColor ??
+          (hand == 'derecha' ? 'rojo' : 'azul'),
+      texto: rawDirection?.toString(),
     );
   }
 
@@ -66,7 +88,11 @@ class RitmoModel {
     return result.map((row) {
       final notasList =
           (row[5] as List<dynamic>?)
-              ?.map((e) => NotaRitmo.fromJson(e as Map<String, dynamic>))
+              ?.map(
+                (e) => NotaRitmo.fromJson(
+                  Map<String, dynamic>.from(e as Map),
+                ),
+              )
               .toList() ??
           [];
       return EjercicioRitmo(
@@ -74,7 +100,7 @@ class RitmoModel {
         titulo: row[1].toString(),
         descripcion: row[2].toString(),
         nivel: row[3].toString(),
-        tempoBpm: row[4] as int,
+        tempoBpm: (row[4] as num).toInt(),
         secuenciaNotas: notasList,
         videoUrl: row[6]?.toString(),
         pasoAPaso: row[7]?.toString(),
@@ -95,7 +121,11 @@ class RitmoModel {
     final row = result.first;
     final notasList =
         (row[5] as List<dynamic>?)
-            ?.map((e) => NotaRitmo.fromJson(e as Map<String, dynamic>))
+            ?.map(
+              (e) => NotaRitmo.fromJson(
+                Map<String, dynamic>.from(e as Map),
+              ),
+            )
             .toList() ??
         [];
     return EjercicioRitmo(
@@ -103,7 +133,7 @@ class RitmoModel {
       titulo: row[1].toString(),
       descripcion: row[2].toString(),
       nivel: row[3].toString(),
-      tempoBpm: row[4] as int,
+      tempoBpm: (row[4] as num).toInt(),
       secuenciaNotas: notasList,
       videoUrl: row[6]?.toString(),
       pasoAPaso: row[7]?.toString(),

@@ -25,8 +25,9 @@ class _AdminAddExerciseScreenState
 
   bool _isRecording = false;
   bool _isSaving = false;
-  DateTime? _recordingStartTime;
+  Stopwatch? _recordingClock;
   Timer? _metronomeTimer;
+  int _lastMetronomeBeat = -1;
   int _tempoBpm = 120;
   static const List<int> _tempoOptions = [60, 80, 100, 120, 140, 160];
 
@@ -52,18 +53,25 @@ class _AdminAddExerciseScreenState
     final exercise = widget.exerciseId == null
         ? null
         : await api.getExerciseById(widget.exerciseId!);
-    final rawNotes = exercise?['notas'] as List<dynamic>? ?? [];
-    final savedTempo =
-        exercise?['tempo_bpm'] ??
-        (rawNotes.isEmpty
-            ? null
-            : (rawNotes.first as Map<String, dynamic>)['tempo_bpm']);
+    final rawNotes =
+        (exercise?['notas'] ?? exercise?['secuencia_notas'])
+            as List<dynamic>? ??
+        [];
+    final firstNote = rawNotes.isEmpty
+        ? null
+        : Map<String, dynamic>.from(rawNotes.first as Map);
+    final rawTempo = exercise?['tempo_bpm'] ?? firstNote?['tempo_bpm'];
+    final savedTempo = rawTempo is num
+        ? rawTempo.toInt()
+        : int.tryParse(rawTempo?.toString() ?? '');
     if (mounted) {
       setState(() {
         _modules = modules;
         _isEditing = exercise != null;
         _selectedModuleId =
-            exercise?['modulo_id']?.toString() ?? widget.moduleId;
+            exercise?['modulo_id']?.toString() ??
+            exercise?['module_id']?.toString() ??
+            widget.moduleId;
         if (_selectedModuleId == null && _modules.isNotEmpty) {
           _selectedModuleId = _modules.first['id'].toString();
         }
@@ -77,7 +85,7 @@ class _AdminAddExerciseScreenState
                     StaffNote.fromJson(Map<String, dynamic>.from(note as Map)),
               ),
             );
-          _tempoBpm = (savedTempo as num?)?.toInt() ?? 120;
+          _tempoBpm = savedTempo != null && savedTempo > 0 ? savedTempo : 120;
         }
       });
     }
@@ -87,26 +95,34 @@ class _AdminAddExerciseScreenState
   void dispose() {
     _titleController.dispose();
     _metronomeTimer?.cancel();
+    _recordingClock?.stop();
+    ref.read(audioServiceProvider).stopMetronome();
     super.dispose();
   }
 
   void _onShakeDetected(DetectedMotion motion) {
-    if (!_isRecording || _recordingStartTime == null) return;
+    if (!_isRecording || _recordingClock == null) return;
 
-    final elapsedMs = DateTime.now()
-        .difference(_recordingStartTime!)
-        .inMilliseconds;
+    final elapsedMs = _recordingClock!.elapsedMilliseconds;
+    final snappedTimeMs = StaffNote.quantizeTimeMs(elapsedMs, _tempoBpm);
+    final hand = motion.hand == HandSide.right ? 'derecha' : 'izquierda';
+    if (_recordedNotes.any(
+      (note) => note.hand == hand && note.timeMs == snappedTimeMs,
+    )) {
+      return;
+    }
 
     setState(() {
       _recordedNotes.add(
         StaffNote(
-          timeMs: elapsedMs,
-          hand: motion.hand == HandSide.right ? 'derecha' : 'izquierda',
+          timeMs: snappedTimeMs,
+          hand: hand,
           direction: motion.direction == MotionDirection.up
               ? 'arriba'
               : 'abajo',
         ),
       );
+      _recordedNotes.sort((a, b) => a.timeMs.compareTo(b.timeMs));
 
       _lastActionText =
           '${motion.hand == HandSide.right ? 'DERECHA' : 'IZQUIERDA'} · ${motion.direction == MotionDirection.up ? 'ARRIBA' : 'ABAJO'}';
@@ -131,6 +147,7 @@ class _AdminAddExerciseScreenState
         // Detener grabación
         _isRecording = false;
         _metronomeTimer?.cancel();
+        _recordingClock?.stop();
         ref.read(audioServiceProvider).stopMetronome();
         _lastActionText =
             "Grabación detenida. ${_recordedNotes.length} notas capturadas.";
@@ -139,15 +156,22 @@ class _AdminAddExerciseScreenState
         // Iniciar grabación
         _recordedNotes.clear();
         _isRecording = true;
-        _recordingStartTime = DateTime.now();
+        _recordingClock = Stopwatch()..start();
+        _lastMetronomeBeat = 0;
         _lastActionText = "Grabando... ¡Mueve tus manos!";
         _statusColor = Colors.greenAccent;
 
         ref.read(audioServiceProvider).playMetronome();
         _metronomeTimer = Timer.periodic(
-          Duration(milliseconds: 60000 ~/ _tempoBpm),
-          (timer) {
-            ref.read(audioServiceProvider).playMetronome();
+          const Duration(milliseconds: 16),
+          (_) {
+            final beat = (_recordingClock!.elapsedMilliseconds /
+                    (60000 / _tempoBpm))
+                .floor();
+            if (beat > _lastMetronomeBeat) {
+              ref.read(audioServiceProvider).playMetronome();
+              _lastMetronomeBeat = beat;
+            }
           },
         );
       }
@@ -160,7 +184,10 @@ class _AdminAddExerciseScreenState
     final rescaledNotes = _recordedNotes
         .map(
           (note) => StaffNote(
-            timeMs: (note.timeMs * timeScale).round(),
+            timeMs: StaffNote.quantizeTimeMs(
+              (note.timeMs * timeScale).round(),
+              bpm,
+            ),
             hand: note.hand,
             direction: note.direction,
           ),
