@@ -79,7 +79,7 @@ class ApiClient extends ChangeNotifier {
   Future<void> register(String name, String email, String password) async {
     await init();
     try {
-      final AuthResponse res = await _supabase.auth.signUp(
+      await _supabase.auth.signUp(
         email: email,
         password: password,
         data: {'name': name},

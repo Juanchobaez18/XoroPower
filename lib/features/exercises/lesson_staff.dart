@@ -49,10 +49,9 @@ class LessonStaff extends StatelessWidget {
       0,
       (max, note) => max > note.timeMs ? max : note.timeMs,
     );
-    final int beatCount = math.max(8, (maxTimeMs / beatMs).ceil() + 1);
-    final double boardWidth = math
-        .max(1200.0, 340 + beatCount * 110.0)
-        .toDouble();
+    final rawBeatCount = math.max(8, (maxTimeMs / beatMs).ceil() + 1);
+    final int beatCount = ((rawBeatCount + 3) ~/ 4) * 4;
+    final double boardWidth = math.max(1200.0, 300 + beatCount * 110.0);
 
     return Container(
       height: 250,
@@ -93,80 +92,112 @@ class _LessonStaffPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    canvas.drawColor(const Color(0xFF08090B), BlendMode.src);
+    canvas.drawColor(const Color(0xFF101113), BlendMode.src);
+    final ink = const Color(0xFFF1E6D2);
+    final red = const Color(0xFFE53935);
+    final blue = const Color(0xFF1E88E5);
     final linePaint = Paint()..strokeWidth = 1.5;
     for (var line = 0; line < 5; line++) {
-      final y = 62.0 + line * 16;
-      linePaint.color = line == 2
-          ? const Color(0xFFE53935)
-          : Colors.white.withOpacity(.48);
+      final y = 48.0 + line * 14;
+      linePaint.color = line == 2 ? red.withOpacity(.82) : ink.withOpacity(.35);
       linePaint.strokeWidth = line == 2 ? 3 : 1.5;
-      canvas.drawLine(Offset(130, y), Offset(size.width - 28, y), linePaint);
+      canvas.drawLine(Offset(190, y), Offset(size.width - 24, y), linePaint);
 
       final blueY = y + 100;
       linePaint.color = line == 2
-          ? const Color(0xFF1E88E5)
-          : Colors.white.withOpacity(.48);
+          ? blue.withOpacity(.82)
+          : ink.withOpacity(.35);
       linePaint.strokeWidth = line == 2 ? 3 : 1.5;
       canvas.drawLine(
-        Offset(130, blueY),
+        Offset(190, blueY),
         Offset(size.width - 28, blueY),
         linePaint,
       );
     }
 
-    _drawText(canvas, '4', const Offset(35, 72), 40, Colors.white);
-    _drawText(canvas, '4', const Offset(35, 120), 40, Colors.white);
+    _drawText(canvas, 'PERCUSIÓN', const Offset(22, 15), 10, ink);
+    _drawText(canvas, '4', const Offset(42, 58), 30, ink);
+    _drawText(canvas, '4', const Offset(42, 88), 30, ink);
     canvas.drawLine(
-      const Offset(27, 116),
-      const Offset(76, 116),
+      const Offset(39, 85),
+      const Offset(65, 85),
       Paint()
-        ..color = Colors.white
-        ..strokeWidth = 3,
+        ..color = ink
+        ..strokeWidth = 2.5,
     );
-    _drawText(canvas, 'D', const Offset(82, 68), 24, Colors.white);
-    _drawText(canvas, 'I', const Offset(88, 168), 24, Colors.white);
+    _drawText(canvas, 'D', const Offset(105, 65), 22, red);
+    _drawText(canvas, 'I', const Offset(108, 165), 22, blue);
+    _drawPercussionClef(canvas, const Offset(155, 77), ink);
+    _drawPercussionClef(canvas, const Offset(155, 177), ink);
 
-    final step = (size.width - 190) / math.max(beatCount, 1);
+    final step = (size.width - 300) / math.max(beatCount, 1);
+    final startX = 190.0;
+    final endX = startX + beatCount * step;
     final beatMs = 60000 / bpm;
     final barPaint = Paint()
-      ..color = Colors.white.withOpacity(.7)
+      ..color = ink
       ..strokeWidth = 2;
+    canvas.drawRect(Rect.fromLTWH(startX, 48, 7, 170), Paint()..color = ink);
+    canvas.drawRect(
+      Rect.fromLTWH(startX + 11, 48, 2.5, 170),
+      Paint()..color = ink,
+    );
+    _drawRepeatDots(canvas, startX + 22, ink);
+
     for (var beat = 0; beat < beatCount; beat++) {
-      final x = 150 + beat * step;
-      if (beat % 4 == 0) {
+      final x = startX + (beat + .5) * step;
+      if (beat > 0 && beat % 4 == 0) {
         canvas.drawLine(
-          Offset(x - step / 2, 48),
-          Offset(x - step / 2, 219),
+          Offset(startX + beat * step, 48),
+          Offset(startX + beat * step, 218),
           barPaint,
         );
       }
       _drawText(
         canvas,
         '${beat % 4 + 1}',
-        Offset(x - 6, 132),
-        13,
-        Colors.white70,
+        Offset(x - 5, 121),
+        12,
+        ink.withOpacity(.68),
       );
     }
     canvas.drawLine(
-      Offset(150 + beatCount * step - step / 2, 48),
-      Offset(150 + beatCount * step - step / 2, 219),
-      barPaint,
+      Offset(endX - 13, 48),
+      Offset(endX - 13, 218),
+      Paint()
+        ..color = ink
+        ..strokeWidth = 2.5,
     );
+    canvas.drawRect(Rect.fromLTWH(endX - 7, 48, 9, 170), Paint()..color = ink);
+    _drawRepeatDots(canvas, endX - 31, ink);
+
+    final occupiedBeats = <String>{};
+    for (final note in notes) {
+      final beat = (note.timeMs / beatMs).round().clamp(0, beatCount - 1);
+      occupiedBeats.add('$beat:${note.hand}');
+    }
+    for (var beat = 0; beat < beatCount; beat++) {
+      final x = startX + (beat + .5) * step;
+      if (!occupiedBeats.contains('$beat:derecha')) {
+        _drawQuarterRest(canvas, Offset(x, 76), ink.withOpacity(.72));
+      }
+      if (!occupiedBeats.contains('$beat:izquierda')) {
+        _drawQuarterRest(canvas, Offset(x, 176), ink.withOpacity(.72));
+      }
+    }
 
     for (final note in notes) {
-      final beat = note.timeMs / beatMs;
-      final x = 150 + beat * step;
+      final beat = (note.timeMs / beatMs).round().clamp(0, beatCount - 1);
+      final x = startX + (beat + .5) * step;
       final isRight = note.hand == 'derecha';
-      final y = isRight ? 62.0 + 32 : 62.0 + 132;
+      final y = isRight ? 76.0 : 176.0;
       final color = note.hit
           ? const Color(0xFF55C86A)
           : note.missed
           ? const Color(0xFF777777)
           : isRight
-          ? const Color(0xFFE53935)
-          : const Color(0xFF1E88E5);
+          ? red
+          : blue;
       final headPaint = Paint()..color = color;
       canvas.save();
       canvas.translate(x, y);
@@ -187,8 +218,8 @@ class _LessonStaffPainter extends CustomPainter {
       _drawText(
         canvas,
         note.direction == 'arriba' ? '↑' : '↓',
-        Offset(x - 6, y + 17),
-        13,
+        Offset(x + 13, y - 13),
+        16,
         color,
       );
       if (note.missed) {
@@ -203,15 +234,76 @@ class _LessonStaffPainter extends CustomPainter {
     }
 
     if (currentMs >= 0) {
-      final cursorX = 150 + (currentMs / beatMs) * step;
+      final cursorX = startX + (currentMs / beatMs) * step;
       canvas.drawLine(
-        Offset(cursorX, 46),
-        Offset(cursorX, 222),
+        Offset(cursorX, 42),
+        Offset(cursorX, 220),
         Paint()
-          ..color = const Color(0xFFD4AF37)
-          ..strokeWidth = 3,
+          ..color = const Color(0xFFD4AF37).withOpacity(.28)
+          ..strokeWidth = 10,
+      );
+      canvas.drawLine(
+        Offset(cursorX, 42),
+        Offset(cursorX, 220),
+        Paint()
+          ..color = const Color(0xFF9C7411)
+          ..strokeWidth = 2,
       );
     }
+  }
+
+  void _drawPercussionClef(Canvas canvas, Offset center, Color color) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 3.5;
+    canvas.drawLine(
+      Offset(center.dx - 4, center.dy - 27),
+      Offset(center.dx - 4, center.dy + 27),
+      paint,
+    );
+    canvas.drawLine(
+      Offset(center.dx + 5, center.dy - 27),
+      Offset(center.dx + 5, center.dy + 27),
+      paint,
+    );
+    canvas.drawCircle(Offset(center.dx + 14, center.dy - 16), 3, paint);
+    canvas.drawCircle(Offset(center.dx + 14, center.dy + 16), 3, paint);
+  }
+
+  void _drawRepeatDots(Canvas canvas, double x, Color color) {
+    final paint = Paint()..color = color;
+    canvas.drawCircle(Offset(x, 70), 3, paint);
+    canvas.drawCircle(Offset(x, 86), 3, paint);
+    canvas.drawCircle(Offset(x, 170), 3, paint);
+    canvas.drawCircle(Offset(x, 186), 3, paint);
+  }
+
+  void _drawQuarterRest(Canvas canvas, Offset center, Color color) {
+    final path = Path()
+      ..moveTo(center.dx + 3, center.dy - 16)
+      ..lineTo(center.dx - 4, center.dy - 7)
+      ..lineTo(center.dx + 4, center.dy - 1)
+      ..lineTo(center.dx - 3, center.dy + 8)
+      ..quadraticBezierTo(
+        center.dx - 7,
+        center.dy + 14,
+        center.dx - 1,
+        center.dy + 15,
+      );
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = color
+        ..strokeWidth = 3
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round,
+    );
+    canvas.drawCircle(
+      Offset(center.dx - 1, center.dy + 15),
+      2,
+      Paint()..color = color,
+    );
   }
 
   void _drawText(

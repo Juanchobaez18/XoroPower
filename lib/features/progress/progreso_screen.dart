@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/api_client.dart';
-import 'dart:math' as math;
 
 class ProgresoScreen extends ConsumerWidget {
   const ProgresoScreen({super.key});
@@ -25,9 +24,15 @@ class ProgresoScreen extends ConsumerWidget {
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   gradient: RadialGradient(
-                    colors: [const Color(0xFFCF1020).withOpacity(0.3), Colors.transparent],
+                    colors: [
+                      const Color(0xFFCF1020).withOpacity(0.3),
+                      Colors.transparent,
+                    ],
                   ),
-                  border: Border.all(color: const Color(0xFFFFD700), width: 1.5),
+                  border: Border.all(
+                    color: const Color(0xFFFFD700),
+                    width: 1.5,
+                  ),
                 ),
                 alignment: Alignment.center,
                 child: const Text('🤠', style: TextStyle(fontSize: 28)),
@@ -37,7 +42,7 @@ class ProgresoScreen extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'HOLA, \${userName.toUpperCase()}',
+                    'HOLA, ${userName.toUpperCase()}',
                     style: TextStyle(
                       color: Colors.white.withOpacity(0.5),
                       fontSize: 11,
@@ -88,7 +93,11 @@ class ProgresoScreen extends ConsumerWidget {
                     ),
                     const Text(
                       '1 Días Consecutivos',
-                      style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900),
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w900,
+                      ),
                     ),
                     Text(
                       '¡Sigue así! Racha máxima de 1 días',
@@ -122,10 +131,20 @@ class ProgresoScreen extends ConsumerWidget {
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Nivel Actual', style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 13)),
+                        Text(
+                          'Nivel Actual',
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.5),
+                            fontSize: 13,
+                          ),
+                        ),
                         const Text(
                           'Básico I',
-                          style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w900),
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 22,
+                            fontWeight: FontWeight.w900,
+                          ),
                         ),
                       ],
                     ),
@@ -145,7 +164,11 @@ class ProgresoScreen extends ConsumerWidget {
                         ),
                         const Text(
                           '33%',
-                          style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ],
                     ),
@@ -155,8 +178,21 @@ class ProgresoScreen extends ConsumerWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('Actividades Realizadas', style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 14)),
-                    const Text('1 / 3', style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
+                    Text(
+                      'Actividades Realizadas',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.5),
+                        fontSize: 14,
+                      ),
+                    ),
+                    const Text(
+                      '1 / 3',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 10),
@@ -199,7 +235,11 @@ class ProgresoScreen extends ConsumerWidget {
 
           const Text(
             'Historial de Ejercicios',
-            style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
           ),
           const SizedBox(height: 16),
 
@@ -218,13 +258,20 @@ class ProgresoScreen extends ConsumerWidget {
                 const SizedBox(height: 12),
                 const Text(
                   '¡Aún no tienes ejercicios registrados!',
-                  style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 6),
                 Text(
                   'Completa ejercicios en tus niveles para ver tu puntuación y avances aquí.',
-                  style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 13),
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.5),
+                    fontSize: 13,
+                  ),
                   textAlign: TextAlign.center,
                 ),
               ],

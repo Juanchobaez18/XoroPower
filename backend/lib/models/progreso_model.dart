@@ -82,7 +82,7 @@ class ProgresoModel {
     try {
       final completado = puntuacion >= 70;
 
-      final result = await Database.connection.execute(
+      await Database.connection.execute(
         Sql.named('''
           INSERT INTO progreso_usuario
             (id_usuario, id_ejercicio, completado, puntuacion_mas_alta, porcentaje_avance, veces_intentado, timestamp_ultimo_intento)

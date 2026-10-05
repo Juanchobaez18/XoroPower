@@ -38,6 +38,7 @@ class _PantallaRitmoState extends ConsumerState<PantallaRitmo> {
   int _score = 0;
   int _combo = 0;
   int _correctHits = 0;
+  final List<String> _movementIssues = [];
   int _tempoBpm = 120;
   String _exerciseTitle = 'Lección';
   String? _loadedExerciseId;
@@ -111,6 +112,7 @@ class _PantallaRitmoState extends ConsumerState<PantallaRitmo> {
       _score = 0;
       _combo = 0;
       _correctHits = 0;
+      _movementIssues.clear();
       _elapsedMs = 0;
       for (final note in _notes) {
         note.hit = false;
@@ -227,6 +229,9 @@ class _PantallaRitmoState extends ConsumerState<PantallaRitmo> {
           );
         }
       } else if (diff <= 300) {
+        _movementIssues.add(
+          '${_formatBeat(targetNote.timeMs)} · ${handString.toUpperCase()} hizo ${directionString.toUpperCase()}, se esperaba ${targetNote.direction.toUpperCase()}.',
+        );
         _showFeedback(
           'DIRECCIÓN: ${targetNote.direction.toUpperCase()}',
           Colors.orangeAccent,
@@ -235,7 +240,110 @@ class _PantallaRitmoState extends ConsumerState<PantallaRitmo> {
         // Agitó demasiado temprano, pero si está muy lejos no penalizamos tanto visualmente, solo reseteamos combo
         // Aquí podríamos hacer lógica de Early Miss, pero lo mantenemos simple.
       }
+    } else {
+      _movementIssues.add(
+        '${_formatBeat(_elapsedMs)} · Movimiento extra: ${handString.toUpperCase()} ${directionString.toUpperCase()}, sin golpe esperado.',
+      );
+      _showFeedback('MOVIMIENTO NO ESPERADO', Colors.orangeAccent);
     }
+  }
+
+  String _formatBeat(int timeMs) {
+    final beat = (timeMs / (60000 / _tempoBpm)).round();
+    return 'Compás ${beat ~/ 4 + 1} · pulso ${beat % 4 + 1}';
+  }
+
+  Widget _buildEvaluationSummary() {
+    final missedCount = _notes.where((note) => note.missed).length;
+    final passed = _approvalPercent >= 70;
+    return Container(
+      margin: const EdgeInsets.only(top: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF21160D),
+        border: Border.all(
+          color: passed ? const Color(0xFF55C86A) : const Color(0xFFE53935),
+        ),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            passed
+                ? 'APROBADO · $_approvalPercent%'
+                : 'NO APROBADO · $_approvalPercent%',
+            style: TextStyle(
+              color: passed ? const Color(0xFF8DF19A) : const Color(0xFFFF8A80),
+              fontWeight: FontWeight.w900,
+              fontSize: 16,
+            ),
+          ),
+          const SizedBox(height: 5),
+          Text(
+            'Aciertos: $_correctHits/${_notes.length} · Fallos: $missedCount · Movimientos incorrectos/extra: ${_movementIssues.length}. Se aprueba con 70% de los golpes esperados.',
+            style: const TextStyle(color: Colors.white70, fontSize: 12),
+          ),
+          const Divider(color: Colors.white24, height: 20),
+          const Text(
+            'DETALLE DEL EJERCICIO',
+            style: TextStyle(
+              color: Color(0xFFFFD700),
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 5),
+          ..._notes.map((note) {
+            final status = note.hit
+                ? 'Correcto'
+                : note.missed
+                ? 'No realizado'
+                : 'Pendiente';
+            final color = note.hit
+                ? const Color(0xFF8DF19A)
+                : note.missed
+                ? const Color(0xFFFF8A80)
+                : Colors.white70;
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 3),
+              child: Text(
+                '${_formatBeat(note.timeMs)} · ${note.hand.toUpperCase()} ${note.direction == 'arriba' ? '↑ ARRIBA' : '↓ ABAJO'} · $status',
+                style: TextStyle(color: color, fontSize: 11),
+              ),
+            );
+          }),
+          if (_movementIssues.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            const Text(
+              'MOVIMIENTOS A CORREGIR',
+              style: TextStyle(
+                color: Color(0xFFFFB74D),
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            ..._movementIssues
+                .take(12)
+                .map(
+                  (issue) => Padding(
+                    padding: const EdgeInsets.only(top: 3),
+                    child: Text(
+                      issue,
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ),
+                ),
+            if (_movementIssues.length > 12)
+              Text(
+                'Y ${_movementIssues.length - 12} movimientos más.',
+                style: const TextStyle(color: Colors.white54, fontSize: 10),
+              ),
+          ],
+        ],
+      ),
+    );
   }
 
   void _showFeedback(String text, Color color) {
@@ -378,14 +486,7 @@ class _PantallaRitmoState extends ConsumerState<PantallaRitmo> {
               ),
             )
           else if (_isFinished)
-            Text(
-              'LECCIÓN COMPLETADA · $_approvalPercent% · ${_approvalPercent >= 70 ? 'APROBADO' : 'SIGUE PRACTICANDO'}',
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Color(0xFFFFD700),
-                fontWeight: FontWeight.w900,
-              ),
-            ),
+            _buildEvaluationSummary(),
           const SizedBox(height: 10),
           FilledButton.icon(
             style: FilledButton.styleFrom(

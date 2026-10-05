@@ -1,6 +1,5 @@
 import '../config/database.dart';
 import 'package:postgres/postgres.dart';
-import 'dart:convert';
 
 class NotaRitmo {
   int ms;
@@ -8,7 +7,12 @@ class NotaRitmo {
   String color;
   String? texto;
 
-  NotaRitmo({required this.ms, required this.mano, required this.color, this.texto});
+  NotaRitmo({
+    required this.ms,
+    required this.mano,
+    required this.color,
+    this.texto,
+  });
 
   factory NotaRitmo.fromJson(Map<String, dynamic> json) {
     return NotaRitmo(
@@ -58,9 +62,13 @@ class RitmoModel {
         ORDER BY fecha_creacion ASC
       '''),
     );
-    
+
     return result.map((row) {
-      final notasList = (row[5] as List<dynamic>?)?.map((e) => NotaRitmo.fromJson(e as Map<String, dynamic>)).toList() ?? [];
+      final notasList =
+          (row[5] as List<dynamic>?)
+              ?.map((e) => NotaRitmo.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          [];
       return EjercicioRitmo(
         id: row[0].toString(),
         titulo: row[1].toString(),
@@ -85,7 +93,11 @@ class RitmoModel {
     );
     if (result.isEmpty) return null;
     final row = result.first;
-    final notasList = (row[5] as List<dynamic>?)?.map((e) => NotaRitmo.fromJson(e as Map<String, dynamic>)).toList() ?? [];
+    final notasList =
+        (row[5] as List<dynamic>?)
+            ?.map((e) => NotaRitmo.fromJson(e as Map<String, dynamic>))
+            .toList() ??
+        [];
     return EjercicioRitmo(
       id: row[0].toString(),
       titulo: row[1].toString(),
