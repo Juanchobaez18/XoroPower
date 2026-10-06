@@ -142,6 +142,27 @@ class _PantallaRitmoState extends ConsumerState<PantallaRitmo> {
     }
   }
 
+  void _changeTempo(int bpm) {
+    if (bpm == _tempoBpm) return;
+    final timeScale = _tempoBpm / bpm;
+    final rescaledNotes = _notes
+        .map(
+          (note) => NoteState(
+            timeMs: StaffNote.quantizeTimeMs(
+              (note.timeMs * timeScale).round(),
+              bpm,
+            ),
+            hand: note.hand,
+            direction: note.direction,
+          ),
+        )
+        .toList();
+    setState(() {
+      _tempoBpm = bpm;
+      _notes = rescaledNotes;
+    });
+  }
+
   Future<void> _startGame() async {
     if (_isLoadingExercise) return;
     if (_exerciseLoadError != null) {
@@ -560,9 +581,24 @@ class _PantallaRitmoState extends ConsumerState<PantallaRitmo> {
                   letterSpacing: 1,
                 ),
               ),
-              Text(
-                '$_tempoBpm BPM',
-                style: const TextStyle(color: Colors.white70, fontSize: 12),
+              DropdownButtonHideUnderline(
+                child: DropdownButton<int>(
+                  value: [60, 80, 100, 120, 140, 160].contains(_tempoBpm) ? _tempoBpm : 120,
+                  dropdownColor: const Color(0xFF171717),
+                  icon: const Icon(Icons.arrow_drop_down, color: Colors.white70),
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                  items: [60, 80, 100, 120, 140, 160]
+                      .map((bpm) => DropdownMenuItem(
+                            value: bpm,
+                            child: Text('$bpm BPM'),
+                          ))
+                      .toList(),
+                  onChanged: _isPlaying || _isPreparingGame
+                      ? null
+                      : (bpm) {
+                          if (bpm != null) _changeTempo(bpm);
+                        },
+                ),
               ),
             ],
           ),
