@@ -58,13 +58,16 @@ class _AdminAddExerciseScreenState
     final exercise = widget.exerciseId == null
         ? null
         : await api.getExerciseById(widget.exerciseId!);
+    List<dynamic> rawNotes = [];
     dynamic rawNotesData = exercise?['notas'] ?? exercise?['secuencia_notas'];
     if (rawNotesData is String) {
       try {
-        rawNotesData = jsonDecode(rawNotesData);
+        final decoded = jsonDecode(rawNotesData);
+        if (decoded is List) rawNotes = decoded;
       } catch (_) {}
+    } else if (rawNotesData is List) {
+      rawNotes = rawNotesData;
     }
-    final rawNotes = (rawNotesData as List<dynamic>?) ?? [];
     final firstNote = rawNotes.isEmpty
         ? null
         : Map<String, dynamic>.from(rawNotes.first as Map);

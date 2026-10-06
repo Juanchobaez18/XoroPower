@@ -197,7 +197,7 @@ class ApiClient extends ChangeNotifier {
       return List<Map<String, dynamic>>.from(data);
     } catch (e) {
       debugPrint('Error fetch exercises: $e');
-      return [];
+      throw Exception('Error fetch exercises: $e');
     }
   }
 

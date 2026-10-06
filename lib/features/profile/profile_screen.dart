@@ -301,13 +301,16 @@ class _StudentExerciseCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    List<dynamic> rawNotes = [];
     dynamic rawNotesData = exercise['notas'] ?? exercise['secuencia_notas'];
     if (rawNotesData is String) {
       try {
-        rawNotesData = jsonDecode(rawNotesData);
+        final decoded = jsonDecode(rawNotesData);
+        if (decoded is List) rawNotes = decoded;
       } catch (_) {}
+    } else if (rawNotesData is List) {
+      rawNotes = rawNotesData;
     }
-    final rawNotes = (rawNotesData as List<dynamic>?) ?? [];
     final notes = rawNotes
         .map(
           (note) => StaffNote.fromJson(Map<String, dynamic>.from(note as Map)),
@@ -353,9 +356,9 @@ class _StudentExerciseCard extends StatelessWidget {
             if (notes.isNotEmpty)
               LessonStaff(notes: notes, bpm: tempo)
             else
-              const Text(
-                'Este ejercicio aún no tiene notas.',
-                style: TextStyle(color: Colors.orangeAccent),
+              Text(
+                'Este ejercicio aún no tiene notas. Raw: $rawNotesData',
+                style: const TextStyle(color: Colors.orangeAccent),
               ),
             const SizedBox(height: 10),
             SizedBox(
