@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'dart:convert';
 import '../../core/api_client.dart';
 import '../exercises/lesson_staff.dart';
 
@@ -300,9 +301,13 @@ class _StudentExerciseCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final rawNotes =
-        (exercise['notas'] ?? exercise['secuencia_notas']) as List<dynamic>? ??
-        [];
+    dynamic rawNotesData = exercise['notas'] ?? exercise['secuencia_notas'];
+    if (rawNotesData is String) {
+      try {
+        rawNotesData = jsonDecode(rawNotesData);
+      } catch (_) {}
+    }
+    final rawNotes = (rawNotesData as List<dynamic>?) ?? [];
     final notes = rawNotes
         .map(
           (note) => StaffNote.fromJson(Map<String, dynamic>.from(note as Map)),

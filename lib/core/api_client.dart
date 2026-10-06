@@ -147,10 +147,9 @@ class ApiClient extends ChangeNotifier {
   Future<void> deleteModule(String id) async {
     await init();
     try {
-      await _supabase.rpc(
-        'delete_module_with_content',
-        params: {'p_module_id': id},
-      );
+      await _supabase.from('exercises').delete().eq('modulo_id', id);
+      await _supabase.from('exercises').delete().eq('module_id', id);
+      await _supabase.from('modules').delete().eq('id', id);
     } catch (e) {
       debugPrint('Error delete module: $e');
       throw Exception('No se pudo eliminar el módulo y su contenido: $e');
