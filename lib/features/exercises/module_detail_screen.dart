@@ -60,7 +60,7 @@ class _ModuleDetailScreenState extends ConsumerState<ModuleDetailScreen> {
     try {
       await ref
           .read(apiClientProvider)
-          .deleteExercise(exercise['id'].toString());
+          .deleteExercise(exercise['id']);
       await _loadExercises();
       if (mounted) {
         ScaffoldMessenger.of(

@@ -163,12 +163,11 @@ class _AdminAddExerciseScreenState
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('No se pudo iniciar el metrónomo: $error'),
+              content: Text('Metrónomo desactivado (sin internet/error: $error)'),
+              duration: const Duration(seconds: 2),
             ),
           );
         }
-        if (mounted) setState(() => _isPreparingRecording = false);
-        return;
       }
       if (!mounted) return;
     }

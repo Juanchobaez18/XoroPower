@@ -144,7 +144,7 @@ class ApiClient extends ChangeNotifier {
     }
   }
 
-  Future<void> deleteModule(String id) async {
+  Future<void> deleteModule(dynamic id) async {
     await init();
     try {
       await _supabase.from('exercises').delete().eq('modulo_id', id);
@@ -180,7 +180,7 @@ class ApiClient extends ChangeNotifier {
     }
   }
 
-  Future<void> deleteExercise(String id) async {
+  Future<void> deleteExercise(dynamic id) async {
     await init();
     try {
       await _supabase.from('exercises').delete().eq('id', id);

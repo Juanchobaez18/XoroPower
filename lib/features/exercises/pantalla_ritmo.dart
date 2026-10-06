@@ -164,12 +164,13 @@ class _PantallaRitmoState extends ConsumerState<PantallaRitmo> {
       await ref.read(audioServiceProvider).init();
     } catch (error) {
       if (mounted) {
-        setState(() => _isPreparingGame = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('No se pudo iniciar el metrónomo: $error')),
+          SnackBar(
+            content: Text('Metrónomo desactivado (sin internet/error: $error)'),
+            duration: const Duration(seconds: 2),
+          ),
         );
       }
-      return;
     }
     if (!mounted) return;
 

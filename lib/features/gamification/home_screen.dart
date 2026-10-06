@@ -399,7 +399,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                             );
                             if (confirm == true && mounted) {
                               try {
-                                await api.deleteModule(mod['id'].toString());
+                                await api.deleteModule(mod['id']);
                                 setState(() {});
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(content: Text('Módulo eliminado')),
