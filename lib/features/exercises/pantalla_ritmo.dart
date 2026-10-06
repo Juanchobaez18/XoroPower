@@ -180,7 +180,11 @@ class _PantallaRitmoState extends ConsumerState<PantallaRitmo> {
       return;
     }
 
-    setState(() => _isPreparingGame = true);
+    setState(() {
+      _isPreparingGame = true;
+      _lastFeedback = "¡PREPÁRATE! 4...";
+      _feedbackColor = Colors.orangeAccent;
+    });
     try {
       await ref.read(audioServiceProvider).init();
     } catch (error) {
@@ -195,48 +199,66 @@ class _PantallaRitmoState extends ConsumerState<PantallaRitmo> {
     }
     if (!mounted) return;
 
-    setState(() {
-      _isPreparingGame = false;
-      _isPlaying = true;
-      _gameClock = Stopwatch()..start();
-      _lastMetronomeBeat = 0;
-      _score = 0;
-      _combo = 0;
-      _correctHits = 0;
-      _movementIssues.clear();
-      _elapsedMs = 0;
-      for (final note in _notes) {
-        note.hit = false;
-        note.missed = false;
-      }
-      _lastFeedback = "¡A BAILAR!";
-      _feedbackColor = Colors.greenAccent;
-    });
-
+    int count = 4;
     ref.read(audioServiceProvider).playMetronome();
 
-    _gameLoop = Timer.periodic(const Duration(milliseconds: 16), (timer) {
-      // ~60fps
-      if (!mounted) {
+    Timer.periodic(Duration(milliseconds: (60000 / _tempoBpm).round()), (timer) {
+      count--;
+      if (count > 0) {
+        if (mounted) {
+          setState(() {
+            _lastFeedback = "¡PREPÁRATE! $count...";
+          });
+          ref.read(audioServiceProvider).playMetronome();
+        }
+      } else {
         timer.cancel();
-        return;
-      }
+        if (mounted && _isPreparingGame) {
+          setState(() {
+            _isPreparingGame = false;
+            _isPlaying = true;
+            _gameClock = Stopwatch()..start();
+            _lastMetronomeBeat = 0;
+            _score = 0;
+            _combo = 0;
+            _correctHits = 0;
+            _movementIssues.clear();
+            _elapsedMs = 0;
+            for (final note in _notes) {
+              note.hit = false;
+              note.missed = false;
+            }
+            _lastFeedback = "¡A BAILAR!";
+            _feedbackColor = Colors.greenAccent;
+          });
 
-      final elapsedMs = _gameClock!.elapsedMilliseconds;
-      final currentBeat = (elapsedMs / (60000 / _tempoBpm)).floor();
-      if (currentBeat > _lastMetronomeBeat) {
-        ref.read(audioServiceProvider).playMetronome();
-        _lastMetronomeBeat = currentBeat;
-      }
-      setState(() {
-        _elapsedMs = elapsedMs;
-      });
+          ref.read(audioServiceProvider).playMetronome();
 
-      _checkMisses();
+          _gameLoop = Timer.periodic(const Duration(milliseconds: 16), (timer) {
+            // ~60fps
+            if (!mounted) {
+              timer.cancel();
+              return;
+            }
 
-      // Chequeo de fin de canción (última nota + 2 segundos)
-      if (_notes.isNotEmpty && _elapsedMs > _notes.last.timeMs + 2000) {
-        _finishGame();
+            final elapsedMs = _gameClock!.elapsedMilliseconds;
+            final currentBeat = (elapsedMs / (60000 / _tempoBpm)).floor();
+            if (currentBeat > _lastMetronomeBeat) {
+              ref.read(audioServiceProvider).playMetronome();
+              _lastMetronomeBeat = currentBeat;
+            }
+            setState(() {
+              _elapsedMs = elapsedMs;
+            });
+
+            _checkMisses();
+
+            // Chequeo de fin de canción (última nota + 2 segundos)
+            if (_notes.isNotEmpty && _elapsedMs > _notes.last.timeMs + 2000) {
+              _finishGame();
+            }
+          });
+        }
       }
     });
   }
@@ -614,7 +636,7 @@ class _PantallaRitmoState extends ConsumerState<PantallaRitmo> {
             style: TextStyle(color: Colors.white70, fontSize: 11),
           ),
           const SizedBox(height: 12),
-          if (_isPlaying)
+          if (_isPlaying || _isPreparingGame)
             Text(
               _lastFeedback,
               textAlign: TextAlign.center,
