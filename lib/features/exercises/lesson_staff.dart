@@ -219,17 +219,12 @@ class _LessonStaffPainter extends CustomPainter {
     }
 
     _drawText(canvas, 'PERCUSIÓN', const Offset(22, 15), 10, ink);
-    _drawPercussionClef(canvas, const Offset(35, 77), ink);
-    _drawPercussionClef(canvas, const Offset(35, 177), ink);
-    _drawText(canvas, '4', const Offset(68, 58), 30, ink);
-    _drawText(canvas, '4', const Offset(68, 88), 30, ink);
-    canvas.drawLine(
-      const Offset(65, 85),
-      const Offset(91, 85),
-      Paint()
-        ..color = ink
-        ..strokeWidth = 2.5,
-    );
+    _drawPercussionClef(canvas, const Offset(35, 76), ink);
+    _drawPercussionClef(canvas, const Offset(35, 176), ink);
+    _drawText(canvas, '4', const Offset(68, 47), 30, ink);
+    _drawText(canvas, '4', const Offset(68, 75), 30, ink);
+    _drawText(canvas, '4', const Offset(68, 147), 30, ink);
+    _drawText(canvas, '4', const Offset(68, 175), 30, ink);
     _drawText(canvas, 'D', const Offset(108, 65), 22, red);
     _drawText(canvas, 'I', const Offset(108, 165), 22, blue);
 
@@ -241,9 +236,9 @@ class _LessonStaffPainter extends CustomPainter {
     final barPaint = Paint()
       ..color = ink
       ..strokeWidth = 2;
-    canvas.drawRect(Rect.fromLTWH(startX, 48, 7, 170), Paint()..color = ink);
+    canvas.drawRect(Rect.fromLTWH(startX, 48, 7, 156), Paint()..color = ink);
     canvas.drawRect(
-      Rect.fromLTWH(startX + 11, 48, 2.5, 170),
+      Rect.fromLTWH(startX + 11, 48, 2.5, 156),
       Paint()..color = ink,
     );
     _drawRepeatDots(canvas, startX + 22, ink);
@@ -253,7 +248,7 @@ class _LessonStaffPainter extends CustomPainter {
       if (beat > 0 && beat % 4 == 0) {
         canvas.drawLine(
           Offset(startX + beat * step, 48),
-          Offset(startX + beat * step, 218),
+          Offset(startX + beat * step, 204),
           barPaint,
         );
       }
@@ -267,12 +262,12 @@ class _LessonStaffPainter extends CustomPainter {
     }
     canvas.drawLine(
       Offset(endX - 13, 48),
-      Offset(endX - 13, 218),
+      Offset(endX - 13, 204),
       Paint()
         ..color = ink
         ..strokeWidth = 2.5,
     );
-    canvas.drawRect(Rect.fromLTWH(endX - 7, 48, 9, 170), Paint()..color = ink);
+    canvas.drawRect(Rect.fromLTWH(endX - 7, 48, 9, 156), Paint()..color = ink);
     _drawRepeatDots(canvas, endX - 31, ink);
 
     final occupiedBeats = <String>{};
@@ -376,16 +371,16 @@ class _LessonStaffPainter extends CustomPainter {
       Offset(center.dx + 5, center.dy + 27),
       paint,
     );
-    canvas.drawCircle(Offset(center.dx + 14, center.dy - 16), 3, paint);
-    canvas.drawCircle(Offset(center.dx + 14, center.dy + 16), 3, paint);
+    canvas.drawCircle(Offset(center.dx + 14, center.dy - 7), 3, paint);
+    canvas.drawCircle(Offset(center.dx + 14, center.dy + 7), 3, paint);
   }
 
   void _drawRepeatDots(Canvas canvas, double x, Color color) {
     final paint = Paint()..color = color;
-    canvas.drawCircle(Offset(x, 70), 3, paint);
-    canvas.drawCircle(Offset(x, 86), 3, paint);
-    canvas.drawCircle(Offset(x, 170), 3, paint);
-    canvas.drawCircle(Offset(x, 186), 3, paint);
+    canvas.drawCircle(Offset(x, 69), 3, paint);
+    canvas.drawCircle(Offset(x, 83), 3, paint);
+    canvas.drawCircle(Offset(x, 169), 3, paint);
+    canvas.drawCircle(Offset(x, 183), 3, paint);
   }
 
   void _drawQuarterRest(Canvas canvas, Offset center, Color color) {

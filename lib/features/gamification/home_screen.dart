@@ -378,6 +378,39 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                           index: idx,
                           title: mod['name'] as String,
                           description: mod['description'] as String,
+                          isAdmin: esAdmin,
+                          onDelete: () async {
+                            final confirm = await showDialog<bool>(
+                              context: context,
+                              builder: (ctx) => AlertDialog(
+                                title: const Text('Eliminar módulo'),
+                                content: Text('¿Eliminar "${mod['name']}" y todas sus lecciones?'),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(ctx, false),
+                                    child: const Text('Cancelar'),
+                                  ),
+                                  FilledButton(
+                                    onPressed: () => Navigator.pop(ctx, true),
+                                    child: const Text('Eliminar'),
+                                  ),
+                                ],
+                              ),
+                            );
+                            if (confirm == true && mounted) {
+                              try {
+                                await api.deleteModule(mod['id'].toString());
+                                setState(() {});
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Módulo eliminado')),
+                                );
+                              } catch (e) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('Error: $e')),
+                                );
+                              }
+                            }
+                          },
                           onTap: () {
                             context.push('/module/${mod['id']}');
                           },
@@ -524,12 +557,16 @@ class _PremiumModuleCard extends StatelessWidget {
   final String title;
   final String description;
   final VoidCallback onTap;
+  final VoidCallback? onDelete;
+  final bool isAdmin;
 
   const _PremiumModuleCard({
     required this.index,
     required this.title,
     required this.description,
     required this.onTap,
+    this.onDelete,
+    this.isAdmin = false,
   });
 
   @override
@@ -596,11 +633,17 @@ class _PremiumModuleCard extends StatelessWidget {
                 ],
               ),
             ),
-            Icon(
-              Icons.chevron_right,
-              color: accentColor.withOpacity(0.6),
-              size: 20,
-            ),
+            if (isAdmin && onDelete != null)
+              IconButton(
+                icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+                onPressed: onDelete,
+              )
+            else
+              Icon(
+                Icons.chevron_right,
+                color: accentColor.withOpacity(0.6),
+                size: 20,
+              ),
           ],
         ),
       ),

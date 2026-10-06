@@ -45,6 +45,7 @@ class _AdminAddExerciseScreenState
   List<Map<String, dynamic>> _modules = [];
   String? _selectedModuleId;
   bool _isEditing = false;
+  bool _showCamera = false;
 
   @override
   void initState() {
@@ -183,27 +184,52 @@ class _AdminAddExerciseScreenState
             "Grabación detenida. ${_recordedNotes.length} notas capturadas.";
         _statusColor = Colors.white;
       } else {
-        // Iniciar grabación
-        _isPreparingRecording = false;
-        _isRecording = true;
-        _recordingClock = Stopwatch()..start();
-        _lastMetronomeBeat = 0;
-        _lastActionText = "Grabando... ¡Mueve tus manos!";
-        _statusColor = Colors.greenAccent;
+        // Iniciar grabación con conteo
+        _isPreparingRecording = true;
+        _lastActionText = "¡Prepárate! 4...";
+        _statusColor = Colors.orangeAccent;
 
+        int count = 4;
         ref.read(audioServiceProvider).playMetronome();
-        _metronomeTimer = Timer.periodic(
-          const Duration(milliseconds: 16),
-          (_) {
-            final beat = (_recordingClock!.elapsedMilliseconds /
-                    (60000 / _tempoBpm))
-                .floor();
-            if (beat > _lastMetronomeBeat) {
+        
+        Timer.periodic(Duration(milliseconds: (60000 / _tempoBpm).round()), (timer) {
+          count--;
+          if (count > 0) {
+            if (mounted) {
+              setState(() {
+                _lastActionText = "¡Prepárate! $count...";
+              });
               ref.read(audioServiceProvider).playMetronome();
-              _lastMetronomeBeat = beat;
             }
-          },
-        );
+          } else {
+            timer.cancel();
+            if (mounted && _isPreparingRecording) {
+              setState(() {
+                _isPreparingRecording = false;
+                _isRecording = true;
+                _showCamera = true;
+                _recordingClock = Stopwatch()..start();
+                _lastMetronomeBeat = 0;
+                _lastActionText = "Grabando... ¡Mueve tus manos!";
+                _statusColor = Colors.greenAccent;
+
+                ref.read(audioServiceProvider).playMetronome();
+                _metronomeTimer = Timer.periodic(
+                  const Duration(milliseconds: 16),
+                  (_) {
+                    final beat = (_recordingClock!.elapsedMilliseconds /
+                            (60000 / _tempoBpm))
+                        .floor();
+                    if (beat > _lastMetronomeBeat) {
+                      ref.read(audioServiceProvider).playMetronome();
+                      _lastMetronomeBeat = beat;
+                    }
+                  },
+                );
+              });
+            }
+          }
+        });
       }
     });
   }
@@ -609,8 +635,9 @@ class _AdminAddExerciseScreenState
       ),
       body: Stack(
         children: [
-          // 1. Cámara en el fondo para ver nuestro propio cuerpo al grabar
-          Positioned.fill(child: CameraView(onShake: _onShakeDetected)),
+          // 1. Cámara (solo si _showCamera o _isRecording)
+          if (_showCamera || _isRecording)
+            Positioned.fill(child: CameraView(onShake: _onShakeDetected)),
 
           // 2. Filtro oscuro semi-transparente
           Positioned.fill(
@@ -788,6 +815,17 @@ class _AdminAddExerciseScreenState
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: [
+                        // Botón Cámara
+                        FloatingActionButton(
+                          heroTag: 'camera_toggle_btn',
+                          backgroundColor: _showCamera ? Colors.blueAccent : Colors.white24,
+                          onPressed: () => setState(() => _showCamera = !_showCamera),
+                          child: Icon(
+                            _showCamera ? Icons.videocam : Icons.videocam_off,
+                            color: Colors.white,
+                          ),
+                        ),
+
                         // Botón Grabar / Detener
                         FloatingActionButton.large(
                           heroTag: 'record_btn',
