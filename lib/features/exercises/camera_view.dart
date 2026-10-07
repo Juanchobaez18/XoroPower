@@ -138,11 +138,7 @@ class _CameraViewState extends State<CameraView> {
             child: Container(
               color: Colors.transparent,
               alignment: Alignment.center,
-              child: const Text(
-                'SIMULADOR / IA ACTIVA\nMueve tus brazos o toca los lados para generar notas.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.bold),
-              ),
+              child: const SizedBox.shrink(),
             ),
           ),
         ],

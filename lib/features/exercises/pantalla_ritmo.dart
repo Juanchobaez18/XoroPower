@@ -26,7 +26,7 @@ class NoteState extends StaffNote {
   });
 }
 
-class _PantallaRitmoState extends ConsumerState<PantallaRitmo> {
+class _PantallaRitmoState extends ConsumerState<PantallaRitmo> with SingleTickerProviderStateMixin {
   List<NoteState> _notes = [];
   bool _isLoadingExercise = true;
   bool _isPreparingGame = false;
@@ -36,7 +36,7 @@ class _PantallaRitmoState extends ConsumerState<PantallaRitmo> {
 
   Stopwatch? _gameClock;
   int _elapsedMs = 0;
-  Timer? _gameLoop;
+  Ticker? _ticker;
   int _lastMetronomeBeat = -1;
 
   int _score = 0;
@@ -60,7 +60,29 @@ class _PantallaRitmoState extends ConsumerState<PantallaRitmo> {
   @override
   void initState() {
     super.initState();
+    _ticker = createTicker(_onTick);
     _loadExercise();
+  }
+
+  void _onTick(Duration elapsed) {
+    if (!_isPlaying) return;
+    
+    final elapsedMs = _gameClock!.elapsedMilliseconds;
+    final currentBeat = (elapsedMs / (60000 / _tempoBpm)).floor();
+    if (currentBeat > _lastMetronomeBeat) {
+      ref.read(audioServiceProvider).playMetronome();
+      _lastMetronomeBeat = currentBeat;
+    }
+    setState(() {
+      _elapsedMs = elapsedMs;
+    });
+
+    _checkMisses();
+
+    // Chequeo de fin de canción (última nota + 2 segundos)
+    if (_notes.isNotEmpty && _elapsedMs > _notes.last.timeMs + 2000) {
+      _finishGame();
+    }
   }
 
   Future<void> _loadExercise() async {
@@ -234,37 +256,14 @@ class _PantallaRitmoState extends ConsumerState<PantallaRitmo> {
 
           ref.read(audioServiceProvider).playMetronome();
 
-          _gameLoop = Timer.periodic(const Duration(milliseconds: 16), (timer) {
-            // ~60fps
-            if (!mounted) {
-              timer.cancel();
-              return;
-            }
-
-            final elapsedMs = _gameClock!.elapsedMilliseconds;
-            final currentBeat = (elapsedMs / (60000 / _tempoBpm)).floor();
-            if (currentBeat > _lastMetronomeBeat) {
-              ref.read(audioServiceProvider).playMetronome();
-              _lastMetronomeBeat = currentBeat;
-            }
-            setState(() {
-              _elapsedMs = elapsedMs;
-            });
-
-            _checkMisses();
-
-            // Chequeo de fin de canción (última nota + 2 segundos)
-            if (_notes.isNotEmpty && _elapsedMs > _notes.last.timeMs + 2000) {
-              _finishGame();
-            }
-          });
+          _ticker?.start();
         }
       }
     });
   }
 
   void _finishGame() async {
-    _gameLoop?.cancel();
+    _ticker?.stop();
     _gameClock?.stop();
     ref.read(audioServiceProvider).stopMetronome();
     setState(() {
@@ -474,7 +473,7 @@ class _PantallaRitmoState extends ConsumerState<PantallaRitmo> {
 
   @override
   void dispose() {
-    _gameLoop?.cancel();
+    _ticker?.dispose();
     _gameClock?.stop();
     ref.read(audioServiceProvider).stopMetronome();
     super.dispose();
@@ -494,7 +493,7 @@ class _PantallaRitmoState extends ConsumerState<PantallaRitmo> {
         leading: IconButton(
           icon: const Icon(Icons.close),
           onPressed: () {
-            _gameLoop?.cancel();
+            _ticker?.stop();
             _gameClock?.stop();
             ref.read(audioServiceProvider).stopMetronome();
             context.pop();
@@ -542,6 +541,51 @@ class _PantallaRitmoState extends ConsumerState<PantallaRitmo> {
                 style: const TextStyle(color: Colors.orangeAccent),
               ),
             ),
+          const SizedBox(height: 14),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'PARTITURA DE LA LECCIÓN',
+                style: TextStyle(
+                  color: Color(0xFFFFD700),
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1,
+                ),
+              ),
+              DropdownButtonHideUnderline(
+                child: DropdownButton<int>(
+                  value: [60, 80, 100, 120, 140, 160].contains(_tempoBpm) ? _tempoBpm : 120,
+                  dropdownColor: const Color(0xFF171717),
+                  icon: const Icon(Icons.arrow_drop_down, color: Colors.white70),
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                  items: [60, 80, 100, 120, 140, 160]
+                      .map((bpm) => DropdownMenuItem(
+                            value: bpm,
+                            child: Text('$bpm BPM'),
+                          ))
+                      .toList(),
+                  onChanged: _isPlaying || _isPreparingGame
+                      ? null
+                      : (bpm) {
+                          if (bpm != null) _changeTempo(bpm);
+                        },
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          LessonStaff(
+            notes: _notes,
+            bpm: _tempoBpm,
+            currentMs: _isPlaying ? _elapsedMs : -1,
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Rojo: mano derecha   Azul: mano izquierda   ↑ / ↓: dirección del movimiento',
+            style: TextStyle(color: Colors.white70, fontSize: 11),
+          ),
+          const SizedBox(height: 14),
           SizedBox(
             height: 220,
             child: ClipRRect(
@@ -591,50 +635,7 @@ class _PantallaRitmoState extends ConsumerState<PantallaRitmo> {
               ),
             ),
           ),
-          const SizedBox(height: 14),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'PARTITURA DE LA LECCIÓN',
-                style: TextStyle(
-                  color: Color(0xFFFFD700),
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 1,
-                ),
-              ),
-              DropdownButtonHideUnderline(
-                child: DropdownButton<int>(
-                  value: [60, 80, 100, 120, 140, 160].contains(_tempoBpm) ? _tempoBpm : 120,
-                  dropdownColor: const Color(0xFF171717),
-                  icon: const Icon(Icons.arrow_drop_down, color: Colors.white70),
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                  items: [60, 80, 100, 120, 140, 160]
-                      .map((bpm) => DropdownMenuItem(
-                            value: bpm,
-                            child: Text('$bpm BPM'),
-                          ))
-                      .toList(),
-                  onChanged: _isPlaying || _isPreparingGame
-                      ? null
-                      : (bpm) {
-                          if (bpm != null) _changeTempo(bpm);
-                        },
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          LessonStaff(
-            notes: _notes,
-            bpm: _tempoBpm,
-            currentMs: _isPlaying ? _elapsedMs : -1,
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Rojo: mano derecha   Azul: mano izquierda   ↑ / ↓: dirección del movimiento',
-            style: TextStyle(color: Colors.white70, fontSize: 11),
-          ),
+
           const SizedBox(height: 12),
           if (_isPlaying || _isPreparingGame)
             Text(
@@ -649,34 +650,61 @@ class _PantallaRitmoState extends ConsumerState<PantallaRitmo> {
           else if (_isFinished)
             _buildEvaluationSummary(),
           const SizedBox(height: 10),
-          FilledButton.icon(
-            style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFFD4AF37),
-              foregroundColor: Colors.black,
-              padding: const EdgeInsets.symmetric(vertical: 14),
+          if (_isFinished)
+            Row(
+              children: [
+                Expanded(
+                  child: FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: Colors.grey.shade800,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    onPressed: _startGame,
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('REPETIR', style: TextStyle(fontWeight: FontWeight.w900)),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFFD4AF37),
+                      foregroundColor: Colors.black,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    onPressed: () => context.pop(),
+                    icon: const Icon(Icons.arrow_forward),
+                    label: const Text('CONTINUAR', style: TextStyle(fontWeight: FontWeight.w900)),
+                  ),
+                ),
+              ],
+            )
+          else
+            FilledButton.icon(
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFFD4AF37),
+                foregroundColor: Colors.black,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+              onPressed:
+                  _isPlaying || _isLoadingExercise || _isPreparingGame
+                  ? null
+                  : _startGame,
+              icon: Icon(
+                _isLoadingExercise || _isPreparingGame
+                    ? Icons.hourglass_empty
+                    : Icons.play_arrow,
+              ),
+              label: Text(
+                _isLoadingExercise
+                    ? 'CARGANDO EJERCICIO...'
+                    : _isPreparingGame
+                    ? 'PREPARANDO METRÓNOMO...'
+                    : 'INICIAR LECCIÓN',
+                style: const TextStyle(fontWeight: FontWeight.w900),
+              ),
             ),
-            onPressed:
-                _isPlaying || _isLoadingExercise || _isPreparingGame
-                ? null
-                : (_isFinished ? () => context.pop() : _startGame),
-            icon: Icon(
-              _isFinished
-                  ? Icons.check
-                  : _isLoadingExercise || _isPreparingGame
-                  ? Icons.hourglass_empty
-                  : Icons.play_arrow,
-            ),
-            label: Text(
-              _isFinished
-                  ? 'VOLVER A LECCIONES'
-                  : _isLoadingExercise
-                  ? 'CARGANDO EJERCICIO...'
-                  : _isPreparingGame
-                  ? 'PREPARANDO METRÓNOMO...'
-                  : 'INICIAR LECCIÓN',
-              style: const TextStyle(fontWeight: FontWeight.w900),
-            ),
-          ),
         ],
       ),
     );
