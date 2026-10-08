@@ -34,6 +34,7 @@ class _PantallaRitmoState extends ConsumerState<PantallaRitmo> with SingleTicker
   String? _exerciseLoadError;
   bool _isPlaying = false;
   bool _isFinished = false;
+  int _lessonRun = 0;
 
   Stopwatch? _gameClock;
   int _elapsedMs = 0;
@@ -205,6 +206,8 @@ class _PantallaRitmoState extends ConsumerState<PantallaRitmo> with SingleTicker
 
     setState(() {
       _isPreparingGame = true;
+      _isFinished = false;
+      _lessonRun++;
       _lastFeedback = "¡PREPÁRATE! 4...";
       _feedbackColor = Colors.orangeAccent;
     });
@@ -577,6 +580,7 @@ class _PantallaRitmoState extends ConsumerState<PantallaRitmo> with SingleTicker
           ),
           const SizedBox(height: 8),
           LessonStaff(
+            key: ValueKey(_lessonRun),
             notes: _notes,
             bpm: _tempoBpm,
             currentMs: _isPlaying ? _elapsedMs : -1,
