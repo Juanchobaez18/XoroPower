@@ -42,12 +42,6 @@ class _CameraViewState extends State<CameraView> {
         onCameraError: _reportCameraError,
       );
       _isReady = true; // Permite que se dibuje el HtmlElementView
-      // Esperar a que Flutter inserte el elemento en el DOM real del navegador
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        Future.delayed(const Duration(milliseconds: 500), () {
-          if (mounted) _webPoseService?.startTracking('webPoseVideo');
-        });
-      });
     } else {
       _poseService = PoseDetectorService(onShakeDetected: widget.onShake);
       _initializeCamera();
@@ -192,6 +186,38 @@ class _CameraViewState extends State<CameraView> {
     }
 
     if (_cameraError != null) {
+      if (kIsWeb) {
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            _webPoseService?.buildVideoElement('webPoseVideo') ??
+                const SizedBox.shrink(),
+            ColoredBox(color: Colors.black.withValues(alpha: .8)),
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      _cameraError!,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                    const SizedBox(height: 8),
+                    TextButton.icon(
+                      onPressed: _retryCamera,
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Reintentar cámara'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        );
+      }
+
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(16),

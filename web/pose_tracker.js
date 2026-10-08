@@ -22,6 +22,16 @@ window.webPoseTracker = {
     const attempt = ++this.startAttempt;
 
     try {
+      if (!window.isSecureContext) {
+        throw new Error(
+          'El navegador solo permite usar la cámara en HTTPS o en localhost.'
+        );
+      }
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error(
+          'Este navegador no permite acceder a la cámara. Prueba con Chrome o Edge actualizado.'
+        );
+      }
       if (typeof Pose === 'undefined' || typeof Camera === 'undefined') {
         throw new Error('No se pudieron cargar las librerías de cámara.');
       }
