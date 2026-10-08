@@ -20,7 +20,7 @@ class WebPoseService {
     // No-op on mobile
   }
 
-  void stopTracking() {
+  void stopTracking({bool clearCallbacks = true}) {
     // No-op on mobile
   }
 }

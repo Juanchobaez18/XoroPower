@@ -30,6 +30,7 @@ class _CameraViewState extends State<CameraView> {
   PoseDetectorService? _poseService;
   WebPoseService? _webPoseService;
   bool _isReady = false;
+  String? _cameraError;
 
   @override
   void initState() {
@@ -44,7 +45,7 @@ class _CameraViewState extends State<CameraView> {
       // Esperar a que Flutter inserte el elemento en el DOM real del navegador
       WidgetsBinding.instance.addPostFrameCallback((_) {
         Future.delayed(const Duration(milliseconds: 500), () {
-          _webPoseService?.startTracking('webPoseVideo');
+          if (mounted) _webPoseService?.startTracking('webPoseVideo');
         });
       });
     } else {
@@ -54,11 +55,13 @@ class _CameraViewState extends State<CameraView> {
   }
 
   Future<void> _initializeCamera() async {
+    CameraController? controller;
     try {
-      final cameras = await availableCameras();
+      final cameras = await availableCameras().timeout(
+        const Duration(seconds: 20),
+      );
       if (cameras.isEmpty) {
         _reportCameraError('No se encontró una cámara en este dispositivo.');
-        if (mounted) setState(() => _isReady = true);
         return;
       }
 
@@ -67,7 +70,7 @@ class _CameraViewState extends State<CameraView> {
         orElse: () => cameras.first,
       );
 
-      _controller = CameraController(
+      controller = CameraController(
         frontCamera,
         ResolutionPreset
             .low, // Baja resolución para procesar frames muy rápido (60fps)
@@ -78,28 +81,62 @@ class _CameraViewState extends State<CameraView> {
                   ? ImageFormatGroup.nv21
                   : ImageFormatGroup.bgra8888),
       );
+      _controller = controller;
 
-      await _controller!.initialize();
-      if (!mounted) return;
-
-      if (!kIsWeb) {
-        await _controller!.startImageStream(_processCameraImage);
+      await controller.initialize().timeout(const Duration(seconds: 20));
+      if (!mounted) {
+        await controller.dispose();
+        return;
       }
+
+      await controller
+          .startImageStream(_processCameraImage)
+          .timeout(const Duration(seconds: 20));
       setState(() => _isReady = true);
       _reportCameraReady(true);
     } catch (e) {
       _reportCameraError('No se pudo activar la cámara: $e');
-      if (mounted) setState(() => _isReady = true);
+      if (controller != null) {
+        if (identical(_controller, controller)) _controller = null;
+        try {
+          await controller.dispose();
+        } catch (disposeError) {
+          debugPrint('Error al liberar la cámara: $disposeError');
+        }
+      }
     }
   }
 
   void _reportCameraReady(bool ready) {
+    if (ready && mounted) {
+      setState(() => _cameraError = null);
+    }
     widget.onCameraReady?.call(ready);
   }
 
   void _reportCameraError(String error) {
+    if (mounted) {
+      setState(() {
+        _cameraError = error;
+        _isReady = true;
+      });
+    }
     widget.onCameraReady?.call(false);
     widget.onCameraError?.call(error);
+  }
+
+  void _retryCamera() {
+    setState(() {
+      _cameraError = null;
+      _isReady = kIsWeb;
+    });
+    widget.onCameraReady?.call(false);
+    if (kIsWeb) {
+      _webPoseService?.stopTracking(clearCallbacks: false);
+      _webPoseService?.startTracking('webPoseVideo');
+    } else {
+      _initializeCamera();
+    }
   }
 
   void _processCameraImage(CameraImage image) {
@@ -152,6 +189,30 @@ class _CameraViewState extends State<CameraView> {
   Widget build(BuildContext context) {
     if (!_isReady) {
       return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_cameraError != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                _cameraError!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.white),
+              ),
+              const SizedBox(height: 8),
+              TextButton.icon(
+                onPressed: _retryCamera,
+                icon: const Icon(Icons.refresh),
+                label: const Text('Reintentar cámara'),
+              ),
+            ],
+          ),
+        ),
+      );
     }
 
     if (!kIsWeb && _controller?.value.isInitialized != true) {

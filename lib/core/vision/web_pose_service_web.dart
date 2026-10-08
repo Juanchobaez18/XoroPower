@@ -45,20 +45,40 @@ class WebPoseService {
 
   void startTracking(String videoElementId) {
     final videoEl = html.document.getElementById(videoElementId);
-    if (videoEl != null) {
-      js.context['webPoseTracker'].callMethod('startTracking', [videoEl]);
-    } else {
+    final tracker = js.context['webPoseTracker'];
+    if (videoEl == null) {
       final error = "No se encontró el elemento de video '$videoElementId'.";
       onCameraReady?.call(false);
       onCameraError?.call(error);
       debugPrint(error);
+      return;
+    }
+    if (tracker == null) {
+      const error =
+          'No se cargó el servicio de cámara. Recarga la página e inténtalo de nuevo.';
+      onCameraReady?.call(false);
+      onCameraError?.call(error);
+      debugPrint(error);
+      return;
+    }
+
+    try {
+      tracker.callMethod('startTracking', [videoEl]);
+    } catch (error) {
+      final message = 'No se pudo iniciar la detección de cámara: $error';
+      onCameraReady?.call(false);
+      onCameraError?.call(message);
+      debugPrint(message);
     }
   }
 
-  void stopTracking() {
-    js.context['webPoseTracker'].callMethod('stopTracking');
-    js.context['onWebPoseShakeDetected'] = null;
-    js.context['onWebPoseCameraReady'] = null;
-    js.context['onWebPoseCameraError'] = null;
+  void stopTracking({bool clearCallbacks = true}) {
+    final tracker = js.context['webPoseTracker'];
+    if (tracker != null) tracker.callMethod('stopTracking');
+    if (clearCallbacks) {
+      js.context['onWebPoseShakeDetected'] = null;
+      js.context['onWebPoseCameraReady'] = null;
+      js.context['onWebPoseCameraError'] = null;
+    }
   }
 }

@@ -4,6 +4,8 @@
 window.webPoseTracker = {
   camera: null,
   pose: null,
+  startTimeout: null,
+  startAttempt: 0,
   
   lastLeftWristY: 0,
   lastRightWristY: 0,
@@ -16,8 +18,14 @@ window.webPoseTracker = {
   
   startTracking: function(videoElement) {
     if (!videoElement) return;
+    this.stopTracking();
+    const attempt = ++this.startAttempt;
 
     try {
+      if (typeof Pose === 'undefined' || typeof Camera === 'undefined') {
+        throw new Error('No se pudieron cargar las librerías de cámara.');
+      }
+
       this.pose = new Pose({locateFile: (file) => {
         return `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`;
       }});
@@ -42,16 +50,32 @@ window.webPoseTracker = {
         height: 480
       });
 
+      this.startTimeout = setTimeout(() => {
+        if (attempt !== this.startAttempt) return;
+        this.stopTracking();
+        if (window.onWebPoseCameraError) {
+          window.onWebPoseCameraError(
+            'La cámara tardó demasiado en activarse. Revisa los permisos del navegador e inténtalo de nuevo.'
+          );
+        }
+      }, 20000);
+
       this.camera.start()
         .then(() => {
+          if (attempt !== this.startAttempt) return;
+          clearTimeout(this.startTimeout);
+          this.startTimeout = null;
           if (window.onWebPoseCameraReady) window.onWebPoseCameraReady();
         })
         .catch((error) => {
+          if (attempt !== this.startAttempt) return;
+          this.stopTracking();
           if (window.onWebPoseCameraError) {
             window.onWebPoseCameraError(`No se pudo activar la cámara: ${error}`);
           }
         });
     } catch (error) {
+      this.stopTracking();
       if (window.onWebPoseCameraError) {
         window.onWebPoseCameraError(`No se pudo iniciar la detección: ${error}`);
       }
@@ -59,6 +83,11 @@ window.webPoseTracker = {
   },
   
   stopTracking: function() {
+    this.startAttempt++;
+    if (this.startTimeout) {
+      clearTimeout(this.startTimeout);
+      this.startTimeout = null;
+    }
     if (this.camera) {
       this.camera.stop();
       this.camera = null;
