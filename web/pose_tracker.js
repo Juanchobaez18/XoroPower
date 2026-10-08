@@ -1,45 +1,47 @@
 // MediaPipe Pose Tracker for Web
-// This script runs in the browser and sends shake events to Flutter
+// Uses shoulder, elbow, wrist and hip landmarks to validate real arm movement.
 
 window.webPoseTracker = {
   camera: null,
   pose: null,
   startTimeout: null,
   startAttempt: 0,
-  
-  lastLeftWristY: 0,
-  lastRightWristY: 0,
-  lastTimestamp: 0,
-  
-  lastLeftShakeTime: 0,
-  lastRightShakeTime: 0,
-  
-  shakeVelocityThreshold: 0.001,
-  
+  hands: null,
+  config: {
+    smoothing: 0.58,
+    minimumTravel: 0.055,
+    minimumFrameTravel: 0.0035,
+    minimumVisibility: 0.35,
+    cooldownMs: 230,
+    calibrationMs: 800
+  },
+
   startTracking: function(videoElement) {
     if (!videoElement) return;
     this.stopTracking();
     const attempt = ++this.startAttempt;
+    this.hands = {
+      left: this.createHandState(),
+      right: this.createHandState()
+    };
+
+    if (!window.isSecureContext) {
+      this.reportError('La cámara requiere HTTPS o localhost.');
+      return;
+    }
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      this.reportError('Este navegador no permite acceder a la cámara.');
+      return;
+    }
+    if (typeof Pose === 'undefined' || typeof Camera === 'undefined') {
+      this.reportError('No se pudieron cargar las librerías de detección. Recarga la página.');
+      return;
+    }
 
     try {
-      if (!window.isSecureContext) {
-        throw new Error(
-          'El navegador solo permite usar la cámara en HTTPS o en localhost.'
-        );
-      }
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        throw new Error(
-          'Este navegador no permite acceder a la cámara. Prueba con Chrome o Edge actualizado.'
-        );
-      }
-      if (typeof Pose === 'undefined' || typeof Camera === 'undefined') {
-        throw new Error('No se pudieron cargar las librerías de cámara.');
-      }
-
-      this.pose = new Pose({locateFile: (file) => {
-        return `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`;
-      }});
-
+      this.pose = new Pose({
+        locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`
+      });
       this.pose.setOptions({
         modelComplexity: 0,
         smoothLandmarks: true,
@@ -47,51 +49,67 @@ window.webPoseTracker = {
         minDetectionConfidence: 0.5,
         minTrackingConfidence: 0.5
       });
-
-      this.pose.onResults(this.onResults.bind(this));
-
-      this.camera = new Camera(videoElement, {
-        onFrame: async () => {
-          if (this.pose) {
-            await this.pose.send({image: videoElement});
-          }
-        },
-        width: 640,
-        height: 480
+      this.pose.onResults(results => {
+        if (attempt === this.startAttempt) this.onResults(results);
       });
 
       this.startTimeout = setTimeout(() => {
         if (attempt !== this.startAttempt) return;
         this.stopTracking();
-        if (window.onWebPoseCameraError) {
-          window.onWebPoseCameraError(
-            'La cámara tardó demasiado en activarse. Revisa los permisos del navegador e inténtalo de nuevo.'
-          );
-        }
-      }, 20000);
+        this.reportError(
+          'La cámara o el detector tardaron demasiado. Revisa los permisos e inténtalo de nuevo.'
+        );
+      }, 30000);
 
-      this.camera.start()
-        .then(() => {
-          if (attempt !== this.startAttempt) return;
-          clearTimeout(this.startTimeout);
-          this.startTimeout = null;
-          if (window.onWebPoseCameraReady) window.onWebPoseCameraReady();
-        })
-        .catch((error) => {
-          if (attempt !== this.startAttempt) return;
-          this.stopTracking();
-          if (window.onWebPoseCameraError) {
-            window.onWebPoseCameraError(`No se pudo activar la cámara: ${error}`);
-          }
+      const startCamera = async () => {
+        await this.pose.initialize();
+        if (attempt !== this.startAttempt) return;
+
+        this.camera = new Camera(videoElement, {
+          onFrame: async () => {
+            if (this.pose && attempt === this.startAttempt) {
+              await this.pose.send({image: videoElement});
+            }
+          },
+          width: 640,
+          height: 480
         });
+        await this.camera.start();
+        if (attempt !== this.startAttempt) return;
+        clearTimeout(this.startTimeout);
+        this.startTimeout = null;
+        if (window.onWebPoseCameraReady) window.onWebPoseCameraReady();
+      };
+
+      startCamera().catch(error => {
+        if (attempt !== this.startAttempt) return;
+        this.stopTracking();
+        this.reportError(`No se pudo activar la cámara: ${error}`);
+      });
     } catch (error) {
       this.stopTracking();
-      if (window.onWebPoseCameraError) {
-        window.onWebPoseCameraError(`No se pudo iniciar la detección: ${error}`);
-      }
+      this.reportError(`No se pudo iniciar la detección: ${error}`);
     }
   },
-  
+
+  createHandState: function() {
+    return {
+      filteredY: null,
+      previousY: null,
+      candidateStartY: null,
+      candidateDirection: null,
+      lastDirection: null,
+      lastEventAt: 0,
+      samples: [],
+      calibrationStartedAt: null,
+      calibrated: false
+    };
+  },
+
+  reportError: function(error) {
+    if (window.onWebPoseCameraError) window.onWebPoseCameraError(error);
+  },
+
   stopTracking: function() {
     this.startAttempt++;
     if (this.startTimeout) {
@@ -107,48 +125,110 @@ window.webPoseTracker = {
       this.pose = null;
     }
   },
-  
+
   onResults: function(results) {
-    if (!results.poseLandmarks) return;
-    
-    // MediaPipe Pose Landmarks: 15 = Left Wrist, 16 = Right Wrist
-    const leftWrist = results.poseLandmarks[15];
-    const rightWrist = results.poseLandmarks[16];
-    
-    const currentTime = Date.now();
-    if (this.lastTimestamp === 0) {
-      this.lastTimestamp = currentTime;
-      if (leftWrist) this.lastLeftWristY = leftWrist.y;
-      if (rightWrist) this.lastRightWristY = rightWrist.y;
+    const landmarks = results.poseLandmarks;
+    if (!landmarks) return;
+
+    const now = performance.now();
+    this.updateHand('left', landmarks, now);
+    this.updateHand('right', landmarks, now);
+  },
+
+  updateHand: function(side, landmarks, now) {
+    const isLeft = side === 'left';
+    const shoulder = landmarks[isLeft ? 11 : 12];
+    const elbow = landmarks[isLeft ? 13 : 14];
+    const wrist = landmarks[isLeft ? 15 : 16];
+    const leftHip = landmarks[23];
+    const rightHip = landmarks[24];
+    const state = this.hands[side];
+    const visible = point =>
+      point && (point.visibility == null ||
+        point.visibility >= this.config.minimumVisibility);
+
+    if (!visible(shoulder) || !visible(wrist)) {
+      state.filteredY = null;
+      state.previousY = null;
+      state.candidateStartY = null;
+      state.candidateDirection = null;
+      state.samples = [];
+      state.calibrationStartedAt = null;
+      state.calibrated = false;
       return;
     }
-    
-    const dt = currentTime - this.lastTimestamp;
-    if (dt === 0) return;
-    
-    // Calculate Left Velocity
-    if (leftWrist) {
-      const velocity = (leftWrist.y - this.lastLeftWristY) / dt;
-      if (Math.abs(velocity) > this.shakeVelocityThreshold && (currentTime - this.lastLeftShakeTime) > 300) {
-        this.lastLeftShakeTime = currentTime;
-        this.dispatchShakeEvent('left', velocity < 0 ? 'up' : 'down');
-      }
-      this.lastLeftWristY = leftWrist.y;
+
+    const shoulderY = shoulder.y;
+    const armY = visible(elbow)
+      ? wrist.y * 0.65 + elbow.y * 0.35
+      : wrist.y;
+    const torsoHeight = visible(leftHip) && visible(rightHip)
+      ? Math.max(0.16, Math.abs((leftHip.y + rightHip.y) / 2 - shoulderY))
+      : 0.3;
+    const position = (armY - shoulderY) / torsoHeight;
+    state.filteredY = state.filteredY == null
+      ? position
+      : state.filteredY * this.config.smoothing +
+        position * (1 - this.config.smoothing);
+
+    if (state.previousY == null) {
+      state.previousY = state.filteredY;
+      state.calibrationStartedAt = now;
+      state.samples.push(state.filteredY);
+      return;
     }
-    
-    // Calculate Right Velocity
-    if (rightWrist) {
-      const velocity = (rightWrist.y - this.lastRightWristY) / dt;
-      if (Math.abs(velocity) > this.shakeVelocityThreshold && (currentTime - this.lastRightShakeTime) > 300) {
-        this.lastRightShakeTime = currentTime;
-        this.dispatchShakeEvent('right', velocity < 0 ? 'up' : 'down');
+
+    const delta = state.filteredY - state.previousY;
+    state.previousY = state.filteredY;
+
+    if (!state.calibrated) {
+      if (Math.abs(delta) <= 0.012) {
+        state.samples.push(state.filteredY);
+        if (state.samples.length > 40) state.samples.shift();
+      } else {
+        state.samples = [state.filteredY];
+        state.calibrationStartedAt = now;
       }
-      this.lastRightWristY = rightWrist.y;
+      if (
+        state.calibrationStartedAt != null &&
+        now - state.calibrationStartedAt >= this.config.calibrationMs &&
+        state.samples.length >= 8
+      ) {
+        const sorted = [...state.samples].sort((a, b) => a - b);
+        state.baselineY = sorted[Math.floor(sorted.length / 2)];
+        state.calibrated = true;
+        state.candidateStartY = state.filteredY;
+      }
+      return;
     }
-    
-    this.lastTimestamp = currentTime;
+
+    if (Math.abs(delta) < this.config.minimumFrameTravel) return;
+    const direction = delta < 0 ? 'up' : 'down';
+
+    if (state.lastDirection === direction) return;
+    if (state.lastDirection && direction !== state.lastDirection) {
+      state.lastDirection = null;
+      state.candidateDirection = null;
+      state.candidateStartY = state.filteredY - delta;
+    }
+    if (state.candidateDirection !== direction) {
+      state.candidateDirection = direction;
+      state.candidateStartY = state.filteredY - delta;
+    }
+
+    const traveled = Math.abs(state.filteredY - state.candidateStartY);
+    if (
+      traveled >= this.config.minimumTravel &&
+      now - state.lastEventAt >= this.config.cooldownMs
+    ) {
+      state.lastEventAt = now;
+      state.lastDirection = direction;
+      state.candidateDirection = null;
+      state.candidateStartY = state.filteredY;
+      this.dispatchShakeEvent(side, direction);
+    }
   },
-  
+
   dispatchShakeEvent: function(side, direction) {
     if (window.onWebPoseShakeDetected) {
       window.onWebPoseShakeDetected(side, direction);

@@ -224,14 +224,7 @@ class _PantallaRitmoState extends ConsumerState<PantallaRitmo>
     try {
       await ref.read(audioServiceProvider).init();
     } catch (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Metrónomo desactivado (sin internet/error: $error)'),
-            duration: const Duration(seconds: 2),
-          ),
-        );
-      }
+      debugPrint('Audio local no disponible; se continúa sin sonido: $error');
     }
     if (!mounted) return;
 
@@ -310,7 +303,7 @@ class _PantallaRitmoState extends ConsumerState<PantallaRitmo>
         if (_elapsedMs > note.timeMs + _hitWindowMs) {
           note.missed = true;
           _combo = 0;
-          _showFeedback("¡FALLO!", Colors.grey);
+          _showFeedback('¡FALLO!', Colors.redAccent);
           ref.read(audioServiceProvider).playMiss();
         }
       }
@@ -352,39 +345,39 @@ class _PantallaRitmoState extends ConsumerState<PantallaRitmo>
         ref.read(audioServiceProvider).playHit();
 
         if (diff <= _perfectWindowMs) {
-          _showFeedback("¡PERFECTO!", const Color(0xFFFFD700));
+          _showFeedback('¡PERFECTO!', Colors.greenAccent);
         } else {
-          _showFeedback(
-            "¡BIEN!",
-            motion.hand == HandSide.right
-                ? const Color(0xFFFF0033)
-                : const Color(0xFF0055FF),
-          );
+          _showFeedback('¡BIEN!', Colors.greenAccent);
         }
       } else if (diff <= 300) {
+        _combo = 0;
         if (targetNote.direction != directionString) {
           _movementIssues.add(
             '${_formatBeat(targetNote.timeMs)} · ${handString.toUpperCase()} hizo ${directionString.toUpperCase()}, se esperaba ${targetNote.direction.toUpperCase()}.',
           );
           _showFeedback(
             'DIRECCIÓN: ${targetNote.direction.toUpperCase()}',
-            Colors.orangeAccent,
+            Colors.redAccent,
           );
         } else {
           _movementIssues.add(
             '${_formatBeat(targetNote.timeMs)} · ${handString.toUpperCase()} llegó fuera del pulso.',
           );
-          _showFeedback('FUERA DE TIEMPO', Colors.orangeAccent);
+          _showFeedback('FUERA DE TIEMPO', Colors.redAccent);
         }
       } else if (currentMs < targetNote.timeMs - 300) {
-        // Agitó demasiado temprano, pero si está muy lejos no penalizamos tanto visualmente, solo reseteamos combo
-        // Aquí podríamos hacer lógica de Early Miss, pero lo mantenemos simple.
+        _combo = 0;
+        _movementIssues.add(
+          '${_formatBeat(currentMs)} · ${handString.toUpperCase()} hizo el movimiento antes del pulso.',
+        );
+        _showFeedback('MUY TEMPRANO', Colors.redAccent);
       }
     } else {
+      _combo = 0;
       _movementIssues.add(
         '${_formatBeat(currentMs)} · Movimiento extra: ${handString.toUpperCase()} ${directionString.toUpperCase()}, sin golpe esperado.',
       );
-      _showFeedback('MOVIMIENTO NO ESPERADO', Colors.orangeAccent);
+      _showFeedback('MOVIMIENTO NO ESPERADO', Colors.redAccent);
     }
   }
 

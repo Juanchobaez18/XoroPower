@@ -168,14 +168,7 @@ class _AdminAddExerciseScreenState
       try {
         await ref.read(audioServiceProvider).init();
       } catch (error) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Metrónomo desactivado (sin internet/error: $error)'),
-              duration: const Duration(seconds: 2),
-            ),
-          );
-        }
+        debugPrint('Audio local no disponible; se continúa sin sonido: $error');
       }
       if (!mounted) return;
     }
