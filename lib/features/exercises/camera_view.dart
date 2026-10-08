@@ -11,6 +11,7 @@ class CameraView extends StatefulWidget {
   final Function(DetectedMotion) onShake;
   final ValueChanged<bool>? onCameraReady;
   final ValueChanged<String>? onCameraError;
+  final ValueChanged<String>? onDetectionStatus;
   final bool enableTapSimulation;
 
   const CameraView({
@@ -18,6 +19,7 @@ class CameraView extends StatefulWidget {
     required this.onShake,
     this.onCameraReady,
     this.onCameraError,
+    this.onDetectionStatus,
     this.enableTapSimulation = true,
   });
 
@@ -40,6 +42,7 @@ class _CameraViewState extends State<CameraView> {
         onShakeDetected: widget.onShake,
         onCameraReady: _reportCameraReady,
         onCameraError: _reportCameraError,
+        onDetectionStatus: widget.onDetectionStatus,
       );
       _isReady = true; // Permite que se dibuje el HtmlElementView
     } else {

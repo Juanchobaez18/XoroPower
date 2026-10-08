@@ -11,12 +11,16 @@ class WebPoseService {
   final Function(DetectedMotion) onShakeDetected;
   final ValueChanged<bool>? onCameraReady;
   final ValueChanged<String>? onCameraError;
+  final ValueChanged<String>? onDetectionStatus;
   html.VideoElement? _videoElement;
+  String _leftHandStatus = 'Buscando';
+  String _rightHandStatus = 'Buscando';
 
   WebPoseService({
     required this.onShakeDetected,
     this.onCameraReady,
     this.onCameraError,
+    this.onDetectionStatus,
   }) {
     if (!_videoViewRegistered) {
       ui_web.platformViewRegistry.registerViewFactory(_videoViewId, (int id) {
@@ -44,6 +48,16 @@ class WebPoseService {
     js.context['onWebPoseCameraError'] = (String error) {
       onCameraReady?.call(false);
       onCameraError?.call(error);
+    };
+    js.context['onWebPoseHandStatus'] = (String side, String status) {
+      if (side == 'right') {
+        _rightHandStatus = status;
+      } else {
+        _leftHandStatus = status;
+      }
+      onDetectionStatus?.call(
+        'Derecha: $_rightHandStatus · Izquierda: $_leftHandStatus',
+      );
     };
   }
 
@@ -101,6 +115,7 @@ class WebPoseService {
       js.context['onWebPoseShakeDetected'] = null;
       js.context['onWebPoseCameraReady'] = null;
       js.context['onWebPoseCameraError'] = null;
+      js.context['onWebPoseHandStatus'] = null;
       _videoElement = null;
     }
   }

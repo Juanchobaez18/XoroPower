@@ -5,11 +5,13 @@ class WebPoseService {
   final Function(DetectedMotion) onShakeDetected;
   final ValueChanged<bool>? onCameraReady;
   final ValueChanged<String>? onCameraError;
+  final ValueChanged<String>? onDetectionStatus;
 
   WebPoseService({
     required this.onShakeDetected,
     this.onCameraReady,
     this.onCameraError,
+    this.onDetectionStatus,
   });
 
   Widget buildVideoElement(String viewId) {

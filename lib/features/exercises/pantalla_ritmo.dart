@@ -34,6 +34,7 @@ class _PantallaRitmoState extends ConsumerState<PantallaRitmo>
   bool _isPreparingGame = false;
   String? _exerciseLoadError;
   String? _cameraError;
+  String? _cameraDetectionStatus;
   bool _cameraReady = false;
   bool _isPlaying = false;
   bool _isFinished = false;
@@ -630,6 +631,10 @@ class _PantallaRitmoState extends ConsumerState<PantallaRitmo>
                       if (!mounted) return;
                       setState(() => _cameraError = error);
                     },
+                    onDetectionStatus: (status) {
+                      if (!mounted || _cameraDetectionStatus == status) return;
+                      setState(() => _cameraDetectionStatus = status);
+                    },
                   ),
                   ColoredBox(color: Colors.black.withValues(alpha: .08)),
                   Positioned(
@@ -676,7 +681,8 @@ class _PantallaRitmoState extends ConsumerState<PantallaRitmo>
           const SizedBox(height: 12),
           Text(
             _cameraReady
-                ? 'Cámara activa: mantén el torso y ambas manos dentro del encuadre.'
+                ? _cameraDetectionStatus ??
+                      'Cámara activa: mantén el torso y ambas manos dentro del encuadre.'
                 : _cameraError ?? 'Activando cámara...',
             textAlign: TextAlign.center,
             style: TextStyle(

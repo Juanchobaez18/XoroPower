@@ -7,10 +7,12 @@ window.webPoseTracker = {
   startTimeout: null,
   startAttempt: 0,
   hands: null,
+  detectorReady: false,
+  processingFrame: false,
   config: {
     smoothing: 0.58,
-    minimumTravel: 0.055,
-    minimumFrameTravel: 0.0035,
+    minimumTravel: 0.045,
+    minimumFrameTravel: 0.00025,
     minimumVisibility: 0.35,
     cooldownMs: 230,
     calibrationMs: 800
@@ -24,6 +26,8 @@ window.webPoseTracker = {
       left: this.createHandState(),
       right: this.createHandState()
     };
+    this.detectorReady = false;
+    this.processingFrame = false;
 
     if (!window.isSecureContext) {
       this.reportError('La cámara requiere HTTPS o localhost.');
@@ -50,7 +54,10 @@ window.webPoseTracker = {
         minTrackingConfidence: 0.5
       });
       this.pose.onResults(results => {
-        if (attempt === this.startAttempt) this.onResults(results);
+        if (attempt === this.startAttempt) {
+          this.detectorReady = true;
+          this.onResults(results);
+        }
       });
 
       this.startTimeout = setTimeout(() => {
@@ -61,27 +68,41 @@ window.webPoseTracker = {
         );
       }, 30000);
 
-      const startCamera = async () => {
-        await this.pose.initialize();
-        if (attempt !== this.startAttempt) return;
+      const pose = this.pose;
+      const initializeDetector = pose.initialize().then(() => {
+        if (attempt === this.startAttempt) this.detectorReady = true;
+      });
 
-        this.camera = new Camera(videoElement, {
-          onFrame: async () => {
-            if (this.pose && attempt === this.startAttempt) {
-              await this.pose.send({image: videoElement});
-            }
-          },
-          width: 640,
-          height: 480
-        });
-        await this.camera.start();
+      this.camera = new Camera(videoElement, {
+        onFrame: async () => {
+          if (
+            !this.pose ||
+            !this.detectorReady ||
+            this.processingFrame ||
+            attempt !== this.startAttempt
+          ) {
+            return;
+          }
+          this.processingFrame = true;
+          try {
+            await this.pose.send({image: videoElement});
+          } catch (error) {
+            console.warn('Error procesando imagen para detectar movimientos:', error);
+          } finally {
+            this.processingFrame = false;
+          }
+        },
+        width: 640,
+        height: 480
+      });
+      const startCamera = this.camera.start();
+
+      Promise.all([initializeDetector, startCamera]).then(() => {
         if (attempt !== this.startAttempt) return;
         clearTimeout(this.startTimeout);
         this.startTimeout = null;
         if (window.onWebPoseCameraReady) window.onWebPoseCameraReady();
-      };
-
-      startCamera().catch(error => {
+      }).catch(error => {
         if (attempt !== this.startAttempt) return;
         this.stopTracking();
         this.reportError(`No se pudo activar la cámara: ${error}`);
@@ -102,7 +123,8 @@ window.webPoseTracker = {
       lastEventAt: 0,
       samples: [],
       calibrationStartedAt: null,
-      calibrated: false
+      calibrated: false,
+      reportedStatus: null
     };
   },
 
@@ -128,7 +150,20 @@ window.webPoseTracker = {
 
   onResults: function(results) {
     const landmarks = results.poseLandmarks;
-    if (!landmarks) return;
+    if (!landmarks) {
+      for (const side of ['left', 'right']) {
+        const state = this.hands[side];
+        state.filteredY = null;
+        state.previousY = null;
+        state.candidateStartY = null;
+        state.candidateDirection = null;
+        state.samples = [];
+        state.calibrationStartedAt = null;
+        state.calibrated = false;
+        this.reportHandStatus(side, 'No detectada');
+      }
+      return;
+    }
 
     const now = performance.now();
     this.updateHand('left', landmarks, now);
@@ -155,8 +190,10 @@ window.webPoseTracker = {
       state.samples = [];
       state.calibrationStartedAt = null;
       state.calibrated = false;
+      this.reportHandStatus(side, 'No detectada');
       return;
     }
+    this.reportHandStatus(side, state.calibrated ? 'Lista' : 'Calibrando');
 
     const shoulderY = shoulder.y;
     const armY = visible(elbow)
@@ -198,6 +235,7 @@ window.webPoseTracker = {
         state.baselineY = sorted[Math.floor(sorted.length / 2)];
         state.calibrated = true;
         state.candidateStartY = state.filteredY;
+        this.reportHandStatus(side, 'Lista');
       }
       return;
     }
@@ -232,6 +270,15 @@ window.webPoseTracker = {
   dispatchShakeEvent: function(side, direction) {
     if (window.onWebPoseShakeDetected) {
       window.onWebPoseShakeDetected(side, direction);
+    }
+  },
+
+  reportHandStatus: function(side, status) {
+    const state = this.hands && this.hands[side];
+    if (!state || state.reportedStatus === status) return;
+    state.reportedStatus = status;
+    if (window.onWebPoseHandStatus) {
+      window.onWebPoseHandStatus(side, status);
     }
   }
 };
