@@ -1,49 +1,27 @@
-A server app built using [Shelf](https://pub.dev/packages/shelf),
-configured to enable running with [Docker](https://www.docker.com/).
+# XoroPower API (prototipo)
 
-This sample code handles HTTP GET requests to `/` and `/echo/<message>`
+Este paquete contiene un servidor Shelf mínimo. Actualmente expone sólo
+`GET /health`; la aplicación Flutter no lo consume y usa Supabase directamente.
+No desplegar este servicio como API de producción todavía.
 
-# Running the sample
+## Ejecución local
 
-## Running with the Dart SDK
+Requiere Dart estable y PostgreSQL. Configura `DATABASE_URL` y
+`CORS_ALLOWED_ORIGIN` en el entorno antes de iniciar el servidor. PostgreSQL
+usa verificación completa de certificados por defecto (`verify-full`); para una
+base local sin TLS, configura `DATABASE_SSL_MODE=disable` sólo en desarrollo.
+Ejecuta desde esta carpeta:
 
-You can run the example with the [Dart SDK](https://dart.dev/get-dart)
-like this:
-
-```
-$ dart run bin/server.dart
-Server listening on port 8080
-```
-
-And then from a second terminal:
-```
-$ curl http://0.0.0.0:8080
-Hello, World!
-$ curl http://0.0.0.0:8080/echo/I_love_Dart
-I_love_Dart
+```powershell
+dart pub get
+dart run bin/server.dart
 ```
 
-## Running with Docker
+El servidor usa `PORT` si está definido; de lo contrario escucha en el puerto
+8080. Comprueba el estado con `GET /health`.
 
-If you have [Docker Desktop](https://www.docker.com/get-started) installed, you
-can build and run with the `docker` command:
+## Bloqueos para producción
 
-```
-$ docker build . -t myserver
-$ docker run -it -p 8080:8080 myserver
-Server listening on port 8080
-```
-
-And then from a second terminal:
-```
-$ curl http://0.0.0.0:8080
-Hello, World!
-$ curl http://0.0.0.0:8080/echo/I_love_Dart
-I_love_Dart
-```
-
-You should see the logging printed in the first terminal:
-```
-2021-05-06T15:47:04.620417  0:00:00.000158 GET     [200] /
-2021-05-06T15:47:08.392928  0:00:00.001216 GET     [200] /echo/I_love_Dart
-```
+- Añadir y proteger con autenticación/autorización las rutas que necesita la
+  aplicación.
+- Añadir pruebas de integración para base de datos, permisos y rutas.

@@ -3,8 +3,14 @@ import 'pose_detector_service.dart';
 
 class WebPoseService {
   final Function(DetectedMotion) onShakeDetected;
+  final ValueChanged<bool>? onCameraReady;
+  final ValueChanged<String>? onCameraError;
 
-  WebPoseService({required this.onShakeDetected});
+  WebPoseService({
+    required this.onShakeDetected,
+    this.onCameraReady,
+    this.onCameraError,
+  });
 
   Widget buildVideoElement(String viewId) {
     return const SizedBox.shrink(); // Not used on mobile

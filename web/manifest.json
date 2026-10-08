@@ -1,11 +1,11 @@
 {
-    "name": "xoropower",
-    "short_name": "xoropower",
+    "name": "XoroPower",
+    "short_name": "XoroPower",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#0C0C0C",
+    "theme_color": "#0C0C0C",
+    "description": "Aprende maracas llaneras con lecciones interactivas y detección de movimiento.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

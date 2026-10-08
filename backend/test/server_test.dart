@@ -1,39 +1,38 @@
-import 'dart:io';
-
-import 'package:http/http.dart';
+import 'package:shelf/shelf.dart';
 import 'package:test/test.dart';
 
+import '../bin/server.dart';
+
 void main() {
-  final port = '8080';
-  final host = 'http://0.0.0.0:$port';
-  late Process p;
+  final handler = buildHandler(allowedOrigin: 'https://app.example.com');
 
-  setUp(() async {
-    p = await Process.start(
-      'dart',
-      ['run', 'bin/server.dart'],
-      environment: {'PORT': port},
+  test('Health endpoint reports the service status', () async {
+    final response = await handler(
+      Request('GET', Uri.parse('http://localhost/health')),
     );
-    // Wait for server to start and print to stdout.
-    await p.stdout.first;
-  });
 
-  tearDown(() => p.kill());
-
-  test('Root', () async {
-    final response = await get(Uri.parse('$host/'));
     expect(response.statusCode, 200);
-    expect(response.body, 'Hello, World!\n');
+    expect(await response.readAsString(), contains('"status":"ok"'));
+    expect(response.headers['content-type'], contains('application/json'));
   });
 
-  test('Echo', () async {
-    final response = await get(Uri.parse('$host/echo/hello'));
-    expect(response.statusCode, 200);
-    expect(response.body, 'hello\n');
-  });
+  test('Unknown routes return 404', () async {
+    final response = await handler(
+      Request('GET', Uri.parse('http://localhost/unknown')),
+    );
 
-  test('404', () async {
-    final response = await get(Uri.parse('$host/foobar'));
     expect(response.statusCode, 404);
+  });
+
+  test('Preflight requests receive CORS headers', () async {
+    final response = await handler(
+      Request('OPTIONS', Uri.parse('http://localhost/health')),
+    );
+
+    expect(response.statusCode, 200);
+    expect(
+      response.headers['access-control-allow-origin'],
+      'https://app.example.com',
+    );
   });
 }

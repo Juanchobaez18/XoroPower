@@ -14,6 +14,7 @@ class _CategoryScreenState extends ConsumerState<CategoryScreen> {
   String _selectedLevel = 'basico';
   List<Map<String, dynamic>> _modules = [];
   bool _isLoading = true;
+  String? _loadError;
 
   @override
   void initState() {
@@ -22,12 +23,20 @@ class _CategoryScreenState extends ConsumerState<CategoryScreen> {
   }
 
   Future<void> _loadModules() async {
-    final api = ref.read(apiClientProvider);
-    final modules = await api.getModules();
-    if (mounted) {
+    try {
+      final api = ref.read(apiClientProvider);
+      final modules = await api.getModules();
+      if (!mounted) return;
       setState(() {
         _modules = modules;
         _isLoading = false;
+        _loadError = null;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _loadError = error.toString();
       });
     }
   }
@@ -131,6 +140,14 @@ class _CategoryScreenState extends ConsumerState<CategoryScreen> {
           // Exercises List
           if (_isLoading)
             const Center(child: CircularProgressIndicator())
+          else if (_loadError != null)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Text(
+                'No se pudieron cargar las categorías: $_loadError',
+                style: const TextStyle(color: Colors.redAccent),
+              ),
+            )
           else if (_modules.isEmpty)
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 24),

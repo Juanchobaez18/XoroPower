@@ -27,11 +27,14 @@ class NoteState extends StaffNote {
   });
 }
 
-class _PantallaRitmoState extends ConsumerState<PantallaRitmo> with SingleTickerProviderStateMixin {
+class _PantallaRitmoState extends ConsumerState<PantallaRitmo>
+    with SingleTickerProviderStateMixin {
   List<NoteState> _notes = [];
   bool _isLoadingExercise = true;
   bool _isPreparingGame = false;
   String? _exerciseLoadError;
+  String? _cameraError;
+  bool _cameraReady = false;
   bool _isPlaying = false;
   bool _isFinished = false;
   int _lessonRun = 0;
@@ -68,7 +71,7 @@ class _PantallaRitmoState extends ConsumerState<PantallaRitmo> with SingleTicker
 
   void _onTick(Duration elapsed) {
     if (!_isPlaying) return;
-    
+
     final elapsedMs = _gameClock!.elapsedMilliseconds;
     final currentBeat = (elapsedMs / (60000 / _tempoBpm)).floor();
     if (currentBeat > _lastMetronomeBeat) {
@@ -110,10 +113,11 @@ class _PantallaRitmoState extends ConsumerState<PantallaRitmo> with SingleTicker
       List<dynamic> rawNotes = [];
       dynamic rawNotesData = exercise['notas'] ?? exercise['secuencia_notas'];
       if (rawNotesData is String) {
-        try {
-          final decoded = jsonDecode(rawNotesData);
-          if (decoded is List) rawNotes = decoded;
-        } catch (_) {}
+        final decoded = jsonDecode(rawNotesData);
+        if (decoded is! List) {
+          throw const FormatException('La secuencia de notas no es una lista.');
+        }
+        rawNotes = decoded;
       } else if (rawNotesData is List) {
         rawNotes = rawNotesData;
       }
@@ -140,11 +144,9 @@ class _PantallaRitmoState extends ConsumerState<PantallaRitmo> with SingleTicker
       }).toList();
       notes.sort((a, b) {
         final timeComparison = a.timeMs.compareTo(b.timeMs);
-        return timeComparison != 0
-            ? timeComparison
-            : a.hand.compareTo(b.hand);
+        return timeComparison != 0 ? timeComparison : a.hand.compareTo(b.hand);
       });
-      final loadedExercise = exercise!;
+      final loadedExercise = exercise;
       final loadedExerciseId = loadedExercise['id']?.toString();
       final loadedExerciseTitle =
           loadedExercise['titulo']?.toString() ?? widget.titulo;
@@ -189,17 +191,25 @@ class _PantallaRitmoState extends ConsumerState<PantallaRitmo> with SingleTicker
 
   Future<void> _startGame() async {
     if (_isLoadingExercise) return;
-    if (_exerciseLoadError != null) {
+    if (!_cameraReady) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_exerciseLoadError!)),
+        SnackBar(
+          content: Text(
+            _cameraError ?? 'Espera a que la cámara esté lista para iniciar.',
+          ),
+        ),
       );
+      return;
+    }
+    if (_exerciseLoadError != null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(_exerciseLoadError!)));
       return;
     }
     if (_notes.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Este ejercicio aún no tiene notas.'),
-        ),
+        const SnackBar(content: Text('Este ejercicio aún no tiene notas.')),
       );
       return;
     }
@@ -228,7 +238,9 @@ class _PantallaRitmoState extends ConsumerState<PantallaRitmo> with SingleTicker
     int count = 4;
     ref.read(audioServiceProvider).playMetronome();
 
-    Timer.periodic(Duration(milliseconds: (60000 / _tempoBpm).round()), (timer) {
+    Timer.periodic(Duration(milliseconds: (60000 / _tempoBpm).round()), (
+      timer,
+    ) {
       count--;
       if (count > 0) {
         if (mounted) {
@@ -280,9 +292,15 @@ class _PantallaRitmoState extends ConsumerState<PantallaRitmo> with SingleTicker
     // Guardar progreso usando ApiClient
     final api = ref.read(apiClientProvider);
     if (_loadedExerciseId != null) {
-      // Enviar puntuación (se puede calcular un porcentaje basado en las notas acertadas,
-      // por ahora mandamos el score base o un % calculado)
-      await api.guardarProgreso(_loadedExerciseId!, _approvalPercent);
+      try {
+        await api.guardarProgreso(_loadedExerciseId!, _approvalPercent);
+      } catch (error) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('No se pudo guardar el progreso: $error')),
+          );
+        }
+      }
     }
   }
 
@@ -559,15 +577,25 @@ class _PantallaRitmoState extends ConsumerState<PantallaRitmo> with SingleTicker
               ),
               DropdownButtonHideUnderline(
                 child: DropdownButton<int>(
-                  value: [60, 80, 100, 120, 140, 160].contains(_tempoBpm) ? _tempoBpm : 120,
+                  value: [60, 80, 100, 120, 140, 160].contains(_tempoBpm)
+                      ? _tempoBpm
+                      : 120,
                   dropdownColor: const Color(0xFF171717),
-                  icon: const Icon(Icons.arrow_drop_down, color: Colors.white70),
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                  icon: const Icon(
+                    Icons.arrow_drop_down,
+                    color: Colors.white70,
+                  ),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
                   items: [60, 80, 100, 120, 140, 160]
-                      .map((bpm) => DropdownMenuItem(
-                            value: bpm,
-                            child: Text('$bpm BPM'),
-                          ))
+                      .map(
+                        (bpm) => DropdownMenuItem(
+                          value: bpm,
+                          child: Text('$bpm BPM'),
+                        ),
+                      )
                       .toList(),
                   onChanged: _isPlaying || _isPreparingGame
                       ? null
@@ -592,20 +620,31 @@ class _PantallaRitmoState extends ConsumerState<PantallaRitmo> with SingleTicker
           ),
           const SizedBox(height: 14),
           SizedBox(
-            height: 220,
+            height: 300,
             child: ClipRRect(
               borderRadius: BorderRadius.circular(10),
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  CameraView(onShake: _onShake),
-                  ColoredBox(color: Colors.black.withOpacity(.24)),
+                  CameraView(
+                    onShake: _onShake,
+                    enableTapSimulation: false,
+                    onCameraReady: (ready) {
+                      if (!mounted) return;
+                      setState(() => _cameraReady = ready);
+                    },
+                    onCameraError: (error) {
+                      if (!mounted) return;
+                      setState(() => _cameraError = error);
+                    },
+                  ),
+                  ColoredBox(color: Colors.black.withValues(alpha: .08)),
                   Positioned(
                     left: 10,
                     top: 10,
                     child: DecoratedBox(
                       decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(.7),
+                        color: Colors.black.withValues(alpha: .7),
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: const Padding(
@@ -642,6 +681,16 @@ class _PantallaRitmoState extends ConsumerState<PantallaRitmo> with SingleTicker
           ),
 
           const SizedBox(height: 12),
+          Text(
+            _cameraReady
+                ? 'Cámara activa: mantén el torso y ambas manos dentro del encuadre.'
+                : _cameraError ?? 'Activando cámara...',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: _cameraReady ? Colors.greenAccent : Colors.orangeAccent,
+              fontSize: 12,
+            ),
+          ),
           if (_isPlaying || _isPreparingGame)
             Text(
               _lastFeedback,
@@ -667,7 +716,10 @@ class _PantallaRitmoState extends ConsumerState<PantallaRitmo> with SingleTicker
                     ),
                     onPressed: _startGame,
                     icon: const Icon(Icons.refresh),
-                    label: const Text('REPETIR', style: TextStyle(fontWeight: FontWeight.w900)),
+                    label: const Text(
+                      'REPETIR',
+                      style: TextStyle(fontWeight: FontWeight.w900),
+                    ),
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -680,7 +732,10 @@ class _PantallaRitmoState extends ConsumerState<PantallaRitmo> with SingleTicker
                     ),
                     onPressed: () => context.pop(),
                     icon: const Icon(Icons.arrow_forward),
-                    label: const Text('CONTINUAR', style: TextStyle(fontWeight: FontWeight.w900)),
+                    label: const Text(
+                      'CONTINUAR',
+                      style: TextStyle(fontWeight: FontWeight.w900),
+                    ),
                   ),
                 ),
               ],
@@ -693,11 +748,14 @@ class _PantallaRitmoState extends ConsumerState<PantallaRitmo> with SingleTicker
                 padding: const EdgeInsets.symmetric(vertical: 14),
               ),
               onPressed:
-                  _isPlaying || _isLoadingExercise || _isPreparingGame
+                  _isPlaying ||
+                      _isLoadingExercise ||
+                      _isPreparingGame ||
+                      !_cameraReady
                   ? null
                   : _startGame,
               icon: Icon(
-                _isLoadingExercise || _isPreparingGame
+                _isLoadingExercise || _isPreparingGame || !_cameraReady
                     ? Icons.hourglass_empty
                     : Icons.play_arrow,
               ),
@@ -706,6 +764,8 @@ class _PantallaRitmoState extends ConsumerState<PantallaRitmo> with SingleTicker
                     ? 'CARGANDO EJERCICIO...'
                     : _isPreparingGame
                     ? 'PREPARANDO METRÓNOMO...'
+                    : !_cameraReady
+                    ? 'ACTIVANDO CÁMARA...'
                     : 'INICIAR LECCIÓN',
                 style: const TextStyle(fontWeight: FontWeight.w900),
               ),

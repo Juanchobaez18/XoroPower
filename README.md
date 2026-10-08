@@ -1,22 +1,57 @@
-# xoropower
+# XoroPower
 
-A new Flutter project.
+Aplicación Flutter para aprender maracas llaneras mediante lecciones guiadas,
+detección de movimientos y seguimiento del progreso en Supabase.
 
-## Getting Started
+## Desarrollo
 
-This project is a starting point for a Flutter application.
+Instala Flutter estable y ejecuta:
 
-A few resources to get you started if this is your first Flutter project:
+```powershell
+flutter pub get
+flutter run
+```
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+La aplicación usa el proyecto Supabase configurado en `lib/main.dart`. La clave
+`publishable` es pública por diseño; nunca configures una clave `service_role`
+en la aplicación. En Supabase, protege las tablas con políticas RLS antes de
+publicar.
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## Preparación de una versión Android
 
-## Supabase: eliminación de módulos
+El identificador permanente configurado es `com.xoropower.app` en Android,
+iOS, macOS y Linux. Confirma que este identificador esté disponible y
+pertenezca a la organización antes de registrar la aplicación en las tiendas;
+cambiarlo después de publicar crea una aplicación distinta.
+
+Las versiones `release` no usan la firma de depuración. El build exige un
+keystore de lanzamiento guardado localmente.
+
+1. Guarda el keystore de carga en `android/` y crea `android/key.properties`
+   localmente:
+
+   ```properties
+   storeFile=upload-keystore.jks
+   keyAlias=upload
+   storePassword=REEMPLAZAR_LOCALMENTE
+   keyPassword=REEMPLAZAR_LOCALMENTE
+   ```
+
+   `key.properties` y los keystores están excluidos de Git. Conserva copias
+   seguras del keystore; no se pueden recuperar desde el APK.
+2. Genera el paquete:
+
+   ```powershell
+   Push-Location android
+   .\gradlew.bat bundleRelease
+   Pop-Location
+   ```
+
+Incrementa `version` en `pubspec.yaml` para cada publicación. La firma iOS
+también requiere que registres el bundle ID en Apple Developer y configures el
+equipo de firma en Xcode.
+
+## Supabase
 
 Antes de habilitar la eliminación de módulos en el panel de administración,
 ejecuta
@@ -24,3 +59,15 @@ ejecuta
 en el SQL Editor del proyecto Supabase. La función elimina en una sola
 transacción el módulo, sus ejercicios y el progreso relacionado, y sólo permite
 la operación a usuarios con rol de administrador.
+
+Revisa también que todas las tablas consultadas por la aplicación tengan
+políticas RLS verificadas con cuentas de estudiante y administrador. La clave
+publishable no sustituye esas políticas.
+
+## Alcance del backend
+
+`backend/` contiene un servicio Shelf independiente con una ruta de salud. La
+aplicación Flutter consume Supabase directamente; este servicio aún no
+implementa la API de la aplicación y no debe desplegarse como backend funcional
+de producción sin completar y proteger sus rutas, base de datos, TLS y política
+de CORS.

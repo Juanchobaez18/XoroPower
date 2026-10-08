@@ -54,29 +54,31 @@ class _AdminAddExerciseScreenState
   }
 
   Future<void> _loadInitialData() async {
-    final api = ref.read(apiClientProvider);
-    final modules = await api.getModules();
-    final exercise = widget.exerciseId == null
-        ? null
-        : await api.getExerciseById(widget.exerciseId!);
-    List<dynamic> rawNotes = [];
-    dynamic rawNotesData = exercise?['notas'] ?? exercise?['secuencia_notas'];
-    if (rawNotesData is String) {
-      try {
+    try {
+      final api = ref.read(apiClientProvider);
+      final modules = await api.getModules();
+      final exercise = widget.exerciseId == null
+          ? null
+          : await api.getExerciseById(widget.exerciseId!);
+      List<dynamic> rawNotes = [];
+      final rawNotesData = exercise?['notas'] ?? exercise?['secuencia_notas'];
+      if (rawNotesData is String) {
         final decoded = jsonDecode(rawNotesData);
-        if (decoded is List) rawNotes = decoded;
-      } catch (_) {}
-    } else if (rawNotesData is List) {
-      rawNotes = rawNotesData;
-    }
-    final firstNote = rawNotes.isEmpty
-        ? null
-        : Map<String, dynamic>.from(rawNotes.first as Map);
-    final rawTempo = firstNote?['tempo_bpm'] ?? exercise?['tempo_bpm'];
-    final savedTempo = rawTempo is num
-        ? rawTempo.toInt()
-        : int.tryParse(rawTempo?.toString() ?? '');
-    if (mounted) {
+        if (decoded is! List) {
+          throw const FormatException('La secuencia de notas no es una lista.');
+        }
+        rawNotes = decoded;
+      } else if (rawNotesData is List) {
+        rawNotes = rawNotesData;
+      }
+      final firstNote = rawNotes.isEmpty
+          ? null
+          : Map<String, dynamic>.from(rawNotes.first as Map);
+      final rawTempo = firstNote?['tempo_bpm'] ?? exercise?['tempo_bpm'];
+      final savedTempo = rawTempo is num
+          ? rawTempo.toInt()
+          : int.tryParse(rawTempo?.toString() ?? '');
+      if (!mounted) return;
       setState(() {
         _modules = modules;
         _isEditing = exercise != null;
@@ -99,6 +101,12 @@ class _AdminAddExerciseScreenState
             );
           _tempoBpm = savedTempo != null && savedTempo > 0 ? savedTempo : 120;
         }
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _lastActionText = 'No se pudieron cargar los datos: $error';
+        _statusColor = Colors.redAccent;
       });
     }
   }

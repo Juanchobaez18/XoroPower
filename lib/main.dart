@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -30,6 +31,7 @@ Future<void> main() async {
     );
     runApp(const ProviderScope(child: XoroPowerApp()));
   } catch (e, stackTrace) {
+    debugPrint('Error fatal al iniciar Supabase: $e\n$stackTrace');
     runApp(
       MaterialApp(
         home: Scaffold(
@@ -37,7 +39,9 @@ Future<void> main() async {
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(16.0),
               child: Text(
-                'Error fatal al iniciar:\n$e\n\n$stackTrace',
+                kDebugMode
+                    ? 'No se pudo iniciar la aplicación:\n$e'
+                    : 'No se pudo iniciar la aplicación. Comprueba tu conexión e inténtalo de nuevo.',
                 style: const TextStyle(color: Colors.red, fontSize: 14),
                 textAlign: TextAlign.left,
               ),

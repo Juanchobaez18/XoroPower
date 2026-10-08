@@ -1,11 +1,21 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-final apiClientProvider = Provider((ref) => ApiClient());
+final apiClientProvider = Provider<ApiClient>((ref) {
+  final apiClient = ApiClient();
+  ref.onDispose(apiClient.dispose);
+  return apiClient;
+});
 
 class ApiClient extends ChangeNotifier {
-  final SupabaseClient _supabase = Supabase.instance.client;
+  ApiClient({SupabaseClient? supabaseClient})
+    : _supabase = supabaseClient ?? Supabase.instance.client;
+
+  final SupabaseClient _supabase;
+  StreamSubscription<AuthState>? _authSubscription;
 
   bool _initialized = false;
   bool _isAdmin = false;
@@ -23,7 +33,7 @@ class ApiClient extends ChangeNotifier {
     }
 
     // Escuchar los cambios de autenticación para notificar al enrutador
-    _supabase.auth.onAuthStateChange.listen((data) async {
+    _authSubscription = _supabase.auth.onAuthStateChange.listen((data) async {
       final AuthChangeEvent event = data.event;
       final Session? session = data.session;
 
@@ -106,7 +116,7 @@ class ApiClient extends ChangeNotifier {
       return List<Map<String, dynamic>>.from(data);
     } catch (e) {
       debugPrint('Error fetch modules: $e');
-      return [];
+      throw Exception('No se pudieron cargar los módulos: $e');
     }
   }
 
@@ -147,9 +157,10 @@ class ApiClient extends ChangeNotifier {
   Future<void> deleteModule(dynamic id) async {
     await init();
     try {
-      await _supabase.from('exercises').delete().eq('modulo_id', id);
-      await _supabase.from('exercises').delete().eq('module_id', id);
-      await _supabase.from('modules').delete().eq('id', id);
+      await _supabase.rpc(
+        'delete_module_with_content',
+        params: {'p_module_id': id.toString()},
+      );
     } catch (e) {
       debugPrint('Error delete module: $e');
       throw Exception('No se pudo eliminar el módulo y su contenido: $e');
@@ -212,7 +223,7 @@ class ApiClient extends ChangeNotifier {
       return data;
     } catch (e) {
       debugPrint('Error fetch exercise: $e');
-      return null;
+      throw Exception('No se pudo cargar el ejercicio: $e');
     }
   }
 
@@ -224,18 +235,20 @@ class ApiClient extends ChangeNotifier {
       return List<Map<String, dynamic>>.from(data);
     } catch (e) {
       debugPrint('Error fetch users: $e');
-      return [];
+      throw Exception('No se pudieron cargar los usuarios: $e');
     }
   }
 
   // --- PROGRESS ---
   Future<void> guardarProgreso(String idEjercicio, int puntuacion) async {
-    if (_supabase.auth.currentUser == null) return;
+    final userId = _supabase.auth.currentUser?.id;
+    if (userId == null) {
+      throw StateError('Debes iniciar sesión para guardar el progreso.');
+    }
     try {
       final completado = puntuacion >= 70;
 
       // Consultamos si ya existe progreso para este ejercicio
-      final userId = _supabase.auth.currentUser!.id;
       final existingData = await _supabase
           .from('progreso_usuario')
           .select()
@@ -267,6 +280,7 @@ class ApiClient extends ChangeNotifier {
       await registrarUso();
     } catch (e) {
       debugPrint('Error al guardar progreso: $e');
+      rethrow;
     }
   }
 
@@ -282,5 +296,11 @@ class ApiClient extends ChangeNotifier {
     } catch (e) {
       debugPrint('Error al registrar uso: $e');
     }
+  }
+
+  @override
+  void dispose() {
+    _authSubscription?.cancel();
+    super.dispose();
   }
 }

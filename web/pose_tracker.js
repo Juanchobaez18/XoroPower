@@ -16,34 +16,46 @@ window.webPoseTracker = {
   
   startTracking: function(videoElement) {
     if (!videoElement) return;
-    
-    // Initialize Pose Model
-    this.pose = new Pose({locateFile: (file) => {
-      return `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`;
-    }});
-    
-    this.pose.setOptions({
-      modelComplexity: 0,
-      smoothLandmarks: true,
-      enableSegmentation: false,
-      minDetectionConfidence: 0.5,
-      minTrackingConfidence: 0.5
-    });
-    
-    this.pose.onResults(this.onResults.bind(this));
-    
-    // Initialize Camera
-    this.camera = new Camera(videoElement, {
-      onFrame: async () => {
-        if (this.pose) {
-          await this.pose.send({image: videoElement});
-        }
-      },
-      width: 640,
-      height: 480
-    });
-    
-    this.camera.start();
+
+    try {
+      this.pose = new Pose({locateFile: (file) => {
+        return `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`;
+      }});
+
+      this.pose.setOptions({
+        modelComplexity: 0,
+        smoothLandmarks: true,
+        enableSegmentation: false,
+        minDetectionConfidence: 0.5,
+        minTrackingConfidence: 0.5
+      });
+
+      this.pose.onResults(this.onResults.bind(this));
+
+      this.camera = new Camera(videoElement, {
+        onFrame: async () => {
+          if (this.pose) {
+            await this.pose.send({image: videoElement});
+          }
+        },
+        width: 640,
+        height: 480
+      });
+
+      this.camera.start()
+        .then(() => {
+          if (window.onWebPoseCameraReady) window.onWebPoseCameraReady();
+        })
+        .catch((error) => {
+          if (window.onWebPoseCameraError) {
+            window.onWebPoseCameraError(`No se pudo activar la cámara: ${error}`);
+          }
+        });
+    } catch (error) {
+      if (window.onWebPoseCameraError) {
+        window.onWebPoseCameraError(`No se pudo iniciar la detección: ${error}`);
+      }
+    }
   },
   
   stopTracking: function() {

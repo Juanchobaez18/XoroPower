@@ -1,4 +1,4 @@
-package com.example.xoropower
+package com.xoropower.app
 
 import io.flutter.embedding.android.FlutterActivity
 

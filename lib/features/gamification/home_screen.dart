@@ -24,10 +24,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   Timer? _msgTimer;
 
   late AnimationController _glowController;
+  late Future<List<Map<String, dynamic>>> _modulesFuture;
 
   @override
   void initState() {
     super.initState();
+    _modulesFuture = ref.read(apiClientProvider).getModules();
     _glowController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 2500),
@@ -349,12 +351,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
               // MÓDULOS DINÁMICOS
               FutureBuilder<List<Map<String, dynamic>>>(
-                future: api.getModules(),
+                future: _modulesFuture,
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(
                       child: CircularProgressIndicator(
                         color: Color(0xFFFFD700),
+                      ),
+                    );
+                  }
+                  if (snapshot.hasError) {
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      child: Text(
+                        'No se pudieron cargar los módulos: ${snapshot.error}',
+                        style: const TextStyle(color: Colors.redAccent),
                       ),
                     );
                   }
