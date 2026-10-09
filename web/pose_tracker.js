@@ -3,12 +3,18 @@
 
 window.webPoseTracker = {
   camera: null,
+  mediaStream: null,
   pose: null,
   startTimeout: null,
+  detectorTimeout: null,
   startAttempt: 0,
   hands: null,
   detectorReady: false,
+  cameraStreamReady: false,
+  firstFrameProcessed: false,
+  reportedReady: false,
   processingFrame: false,
+  frameRequest: null,
   config: {
     smoothing: 0.58,
     minimumTravel: 0.045,
@@ -27,7 +33,12 @@ window.webPoseTracker = {
       right: this.createHandState()
     };
     this.detectorReady = false;
+    this.cameraStreamReady = false;
+    this.firstFrameProcessed = false;
+    this.reportedReady = false;
     this.processingFrame = false;
+    this.reportHandStatus('left', 'Activando cámara');
+    this.reportHandStatus('right', 'Activando cámara');
 
     if (!window.isSecureContext) {
       this.reportError('La cámara requiere HTTPS o localhost.');
@@ -37,14 +48,14 @@ window.webPoseTracker = {
       this.reportError('Este navegador no permite acceder a la cámara.');
       return;
     }
-    if (typeof Pose === 'undefined' || typeof Camera === 'undefined') {
-      this.reportError('No se pudieron cargar las librerías de detección. Recarga la página.');
+    if (typeof Pose === 'undefined') {
+      this.reportError('No se pudo cargar MediaPipe Pose. Revisa la conexión e inténtalo de nuevo.');
       return;
     }
 
     try {
       this.pose = new Pose({
-        locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`
+        locateFile: file => `mediapipe/${file}`
       });
       this.pose.setOptions({
         modelComplexity: 0,
@@ -55,62 +66,137 @@ window.webPoseTracker = {
       });
       this.pose.onResults(results => {
         if (attempt === this.startAttempt) {
-          this.detectorReady = true;
+          this.firstFrameProcessed = true;
           this.onResults(results);
+          this.reportCameraReadyIfReady(attempt);
+          clearTimeout(this.detectorTimeout);
+          this.detectorTimeout = null;
         }
       });
 
       this.startTimeout = setTimeout(() => {
         if (attempt !== this.startAttempt) return;
         this.stopTracking();
-        this.reportError(
-          'La cámara o el detector tardaron demasiado. Revisa los permisos e inténtalo de nuevo.'
-        );
-      }, 30000);
+        this.reportError('La cámara no respondió al permiso solicitado. Permite el acceso e inténtalo de nuevo.');
+      }, 15000);
 
       const pose = this.pose;
       const initializeDetector = pose.initialize().then(() => {
-        if (attempt === this.startAttempt) this.detectorReady = true;
-      });
-
-      this.camera = new Camera(videoElement, {
-        onFrame: async () => {
-          if (
-            !this.pose ||
-            !this.detectorReady ||
-            this.processingFrame ||
-            attempt !== this.startAttempt
-          ) {
-            return;
-          }
-          this.processingFrame = true;
-          try {
-            await this.pose.send({image: videoElement});
-          } catch (error) {
-            console.warn('Error procesando imagen para detectar movimientos:', error);
-          } finally {
-            this.processingFrame = false;
-          }
-        },
-        width: 640,
-        height: 480
-      });
-      const startCamera = this.camera.start();
-
-      Promise.all([initializeDetector, startCamera]).then(() => {
         if (attempt !== this.startAttempt) return;
+        this.detectorReady = true;
+        this.reportHandStatus('left', 'Buscando');
+        this.reportHandStatus('right', 'Buscando');
+        this.scheduleFrame(videoElement, attempt);
+        this.reportCameraReadyIfReady(attempt);
+      }).catch(error => {
+        if (attempt !== this.startAttempt) throw error;
+        this.stopTracking();
+        this.reportError(`No se pudo cargar el detector de movimientos. Revisa la conexión: ${error}`);
+        throw error;
+      });
+
+      this.detectorTimeout = setTimeout(() => {
+        if (attempt !== this.startAttempt || this.firstFrameProcessed) return;
+        this.stopTracking();
+        this.reportError('No se pudo iniciar el modelo de movimientos. Revisa tu conexión a internet (MediaPipe se carga en línea) e inténtalo de nuevo.');
+      }, 25000);
+
+      videoElement.muted = true;
+      videoElement.autoplay = true;
+      videoElement.setAttribute('playsinline', '');
+      const cameraReady = navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: {
+          facingMode: 'user',
+          width: {ideal: 640},
+          height: {ideal: 480}
+        }
+      }).then(async stream => {
+        if (attempt !== this.startAttempt) {
+          stream.getTracks().forEach(track => track.stop());
+          return;
+        }
+        this.mediaStream = stream;
+        videoElement.srcObject = stream;
+        await videoElement.play();
+        if (attempt !== this.startAttempt) return;
+        this.cameraStreamReady = true;
         clearTimeout(this.startTimeout);
         this.startTimeout = null;
-        if (window.onWebPoseCameraReady) window.onWebPoseCameraReady();
+        this.reportHandStatus('left', this.detectorReady ? 'Buscando' : 'Cargando detector');
+        this.reportHandStatus('right', this.detectorReady ? 'Buscando' : 'Cargando detector');
+        this.reportCameraReadyIfReady(attempt);
       }).catch(error => {
-        if (attempt !== this.startAttempt) return;
+        if (attempt !== this.startAttempt) throw error;
         this.stopTracking();
-        this.reportError(`No se pudo activar la cámara: ${error}`);
+        this.reportError(this.cameraErrorMessage(error));
+        throw error;
+      });
+
+      Promise.all([initializeDetector, cameraReady]).catch(error => {
+        console.warn('Inicialización de cámara/detector:', error);
       });
     } catch (error) {
       this.stopTracking();
       this.reportError(`No se pudo iniciar la detección: ${error}`);
     }
+  },
+
+  cameraErrorMessage: function(error) {
+    switch (error && error.name) {
+      case 'NotAllowedError':
+      case 'PermissionDeniedError':
+        return 'Permiso de cámara denegado. Permite la cámara para este sitio desde el navegador e inténtalo de nuevo.';
+      case 'NotFoundError':
+        return 'No se encontró una cámara disponible en este dispositivo.';
+      case 'NotReadableError':
+        return 'La cámara está ocupada por otra aplicación. Ciérrala e inténtalo de nuevo.';
+      case 'OverconstrainedError':
+        return 'La cámara no admite la configuración solicitada.';
+      default:
+        return `No se pudo activar la cámara: ${error && error.message ? error.message : error}`;
+    }
+  },
+
+  reportCameraReadyIfReady: function(attempt) {
+    if (
+      attempt !== this.startAttempt ||
+      !this.cameraStreamReady ||
+      !this.detectorReady ||
+      !this.firstFrameProcessed ||
+      this.reportedReady
+    ) {
+      return;
+    }
+    this.reportedReady = true;
+    if (window.onWebPoseCameraReady) window.onWebPoseCameraReady();
+  },
+
+  scheduleFrame: function(videoElement, attempt) {
+    if (this.frameRequest != null || attempt !== this.startAttempt) return;
+    this.frameRequest = requestAnimationFrame(async () => {
+      this.frameRequest = null;
+      if (
+        attempt !== this.startAttempt ||
+        !this.pose ||
+        !this.detectorReady ||
+        videoElement.readyState < HTMLMediaElement.HAVE_CURRENT_DATA ||
+        this.processingFrame
+      ) {
+        this.scheduleFrame(videoElement, attempt);
+        return;
+      }
+
+      this.processingFrame = true;
+      try {
+        await this.pose.send({image: videoElement});
+      } catch (error) {
+        console.warn('Error procesando imagen para detectar movimientos:', error);
+      } finally {
+        this.processingFrame = false;
+        this.scheduleFrame(videoElement, attempt);
+      }
+    });
   },
 
   createHandState: function() {
@@ -137,6 +223,18 @@ window.webPoseTracker = {
     if (this.startTimeout) {
       clearTimeout(this.startTimeout);
       this.startTimeout = null;
+    }
+    if (this.detectorTimeout) {
+      clearTimeout(this.detectorTimeout);
+      this.detectorTimeout = null;
+    }
+    if (this.frameRequest != null) {
+      cancelAnimationFrame(this.frameRequest);
+      this.frameRequest = null;
+    }
+    if (this.mediaStream) {
+      this.mediaStream.getTracks().forEach(track => track.stop());
+      this.mediaStream = null;
     }
     if (this.camera) {
       this.camera.stop();

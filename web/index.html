@@ -32,9 +32,8 @@
   <title>XoroPower</title>
   <link rel="manifest" href="manifest.json">
   
-  <!-- MediaPipe AI Libraries -->
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
+  <!-- MediaPipe Pose is bundled locally so recognition works without a CDN. -->
+  <script src="mediapipe/pose.js"></script>
   <script src="pose_tracker.js" defer></script>
   <script src="audio_feedback.js" defer></script>
 </head>

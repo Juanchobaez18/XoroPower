@@ -36,6 +36,7 @@ class _PantallaRitmoState extends ConsumerState<PantallaRitmo>
   String? _cameraError;
   String? _cameraDetectionStatus;
   bool _cameraReady = false;
+  int _cameraRetryKey = 0;
   bool _isPlaying = false;
   bool _isFinished = false;
   int _lessonRun = 0;
@@ -187,6 +188,15 @@ class _PantallaRitmoState extends ConsumerState<PantallaRitmo>
     setState(() {
       _tempoBpm = bpm;
       _notes = rescaledNotes;
+    });
+  }
+
+  void _retryCamera() {
+    setState(() {
+      _cameraError = null;
+      _cameraDetectionStatus = null;
+      _cameraReady = false;
+      _cameraRetryKey++;
     });
   }
 
@@ -621,6 +631,7 @@ class _PantallaRitmoState extends ConsumerState<PantallaRitmo>
                 fit: StackFit.expand,
                 children: [
                   CameraView(
+                    key: ValueKey('student-camera-$_cameraRetryKey'),
                     onShake: _onShake,
                     enableTapSimulation: false,
                     onCameraReady: (ready) {
@@ -686,7 +697,11 @@ class _PantallaRitmoState extends ConsumerState<PantallaRitmo>
                 : _cameraError ?? 'Activando cámara...',
             textAlign: TextAlign.center,
             style: TextStyle(
-              color: _cameraReady ? Colors.greenAccent : Colors.orangeAccent,
+              color: _cameraReady
+                  ? Colors.greenAccent
+                  : _cameraError != null
+                  ? Colors.redAccent
+                  : Colors.orangeAccent,
               fontSize: 12,
             ),
           ),
@@ -746,15 +761,19 @@ class _PantallaRitmoState extends ConsumerState<PantallaRitmo>
                 foregroundColor: Colors.black,
                 padding: const EdgeInsets.symmetric(vertical: 14),
               ),
-              onPressed:
-                  _isPlaying ||
-                      _isLoadingExercise ||
-                      _isPreparingGame ||
-                      !_cameraReady
+              onPressed: _isPlaying || _isLoadingExercise || _isPreparingGame
                   ? null
-                  : _startGame,
+                  : _cameraReady
+                  ? _startGame
+                  : _cameraError != null
+                  ? _retryCamera
+                  : null,
               icon: Icon(
-                _isLoadingExercise || _isPreparingGame || !_cameraReady
+                _isLoadingExercise || _isPreparingGame
+                    ? Icons.hourglass_empty
+                    : !_cameraReady && _cameraError != null
+                    ? Icons.refresh
+                    : !_cameraReady
                     ? Icons.hourglass_empty
                     : Icons.play_arrow,
               ),
@@ -763,6 +782,8 @@ class _PantallaRitmoState extends ConsumerState<PantallaRitmo>
                     ? 'CARGANDO EJERCICIO...'
                     : _isPreparingGame
                     ? 'PREPARANDO METRÓNOMO...'
+                    : !_cameraReady && _cameraError != null
+                    ? 'REINTENTAR CÁMARA'
                     : !_cameraReady
                     ? 'ACTIVANDO CÁMARA...'
                     : 'INICIAR LECCIÓN',

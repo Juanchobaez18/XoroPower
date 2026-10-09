@@ -1,4 +1,5 @@
 import 'dart:js' as js;
+import 'dart:js_util' as js_util;
 import 'dart:html' as html;
 import 'dart:ui_web' as ui_web;
 import 'package:flutter/material.dart';
@@ -7,6 +8,7 @@ import 'pose_detector_service.dart';
 class WebPoseService {
   static const String _videoViewId = 'webPoseVideo';
   static bool _videoViewRegistered = false;
+  static WebPoseService? _activeService;
 
   final Function(DetectedMotion) onShakeDetected;
   final ValueChanged<bool>? onCameraReady;
@@ -22,6 +24,8 @@ class WebPoseService {
     this.onCameraError,
     this.onDetectionStatus,
   }) {
+    _activeService = this;
+
     if (!_videoViewRegistered) {
       ui_web.platformViewRegistry.registerViewFactory(_videoViewId, (int id) {
         return html.VideoElement()
@@ -36,20 +40,27 @@ class WebPoseService {
     }
 
     // Bind the global JS callback to our Dart function
-    js.context['onWebPoseShakeDetected'] =
-        (String sideStr, String directionStr) {
-          final hand = sideStr == 'left' ? HandSide.left : HandSide.right;
-          final direction = directionStr == 'up'
-              ? MotionDirection.up
-              : MotionDirection.down;
-          onShakeDetected(DetectedMotion(hand: hand, direction: direction));
-        };
-    js.context['onWebPoseCameraReady'] = () => onCameraReady?.call(true);
-    js.context['onWebPoseCameraError'] = (String error) {
+    js.context['onWebPoseShakeDetected'] = js_util.allowInterop((
+      String sideStr,
+      String directionStr,
+    ) {
+      final hand = sideStr == 'left' ? HandSide.left : HandSide.right;
+      final direction = directionStr == 'up'
+          ? MotionDirection.up
+          : MotionDirection.down;
+      onShakeDetected(DetectedMotion(hand: hand, direction: direction));
+    });
+    js.context['onWebPoseCameraReady'] = js_util.allowInterop(
+      () => onCameraReady?.call(true),
+    );
+    js.context['onWebPoseCameraError'] = js_util.allowInterop((String error) {
       onCameraReady?.call(false);
       onCameraError?.call(error);
-    };
-    js.context['onWebPoseHandStatus'] = (String side, String status) {
+    });
+    js.context['onWebPoseHandStatus'] = js_util.allowInterop((
+      String side,
+      String status,
+    ) {
       if (side == 'right') {
         _rightHandStatus = status;
       } else {
@@ -58,7 +69,7 @@ class WebPoseService {
       onDetectionStatus?.call(
         'Derecha: $_rightHandStatus · Izquierda: $_leftHandStatus',
       );
-    };
+    });
   }
 
   Widget buildVideoElement(String viewId) {
@@ -80,6 +91,8 @@ class WebPoseService {
   }
 
   void startTracking(String videoElementId) {
+    if (!identical(_activeService, this)) return;
+
     final videoEl = _videoElement;
     final tracker = js.context['webPoseTracker'];
     if (videoEl == null) {
@@ -109,6 +122,8 @@ class WebPoseService {
   }
 
   void stopTracking({bool clearCallbacks = true}) {
+    if (!identical(_activeService, this)) return;
+
     final tracker = js.context['webPoseTracker'];
     if (tracker != null) tracker.callMethod('stopTracking');
     if (clearCallbacks) {
@@ -117,6 +132,7 @@ class WebPoseService {
       js.context['onWebPoseCameraError'] = null;
       js.context['onWebPoseHandStatus'] = null;
       _videoElement = null;
+      _activeService = null;
     }
   }
 }
