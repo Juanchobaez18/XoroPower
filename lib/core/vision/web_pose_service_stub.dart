@@ -25,4 +25,8 @@ class WebPoseService {
   void stopTracking({bool clearCallbacks = true}) {
     // No-op on mobile
   }
+
+  void setObjectFit(String fit) {
+    // No-op on mobile
+  }
 }

@@ -36,6 +36,22 @@
   <script src="mediapipe/pose.js"></script>
   <script src="pose_tracker.js" defer></script>
   <script src="audio_feedback.js" defer></script>
+  <script>
+    // Garantiza que cualquier video o audio se desilencie y alcance volumen 1.0 al primer toque/clic
+    function unlockMediaAudio() {
+      const mediaList = document.querySelectorAll('video, audio');
+      mediaList.forEach(function(media) {
+        try {
+          media.muted = false;
+          media.volume = 1.0;
+        } catch (e) {}
+      });
+    }
+    window.addEventListener('pointerdown', unlockMediaAudio, { passive: true });
+    window.addEventListener('click', unlockMediaAudio, { passive: true });
+    window.addEventListener('keydown', unlockMediaAudio, { passive: true });
+    window.addEventListener('touchstart', unlockMediaAudio, { passive: true });
+  </script>
 </head>
 <body>
   <!--

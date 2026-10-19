@@ -73,9 +73,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           ),
 
           // Main Content
-          ListView(
-            padding: const EdgeInsets.only(bottom: 32),
-            children: [
+          Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1100),
+              child: ListView(
+                padding: const EdgeInsets.only(bottom: 32),
+                children: [
               // HERO SECTION
               SizedBox(
                 height: 300,
@@ -433,9 +436,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               ),
             ],
           ),
-        ],
+        ),
       ),
-    );
+    ],
+  ),
+);
   }
 
   Future<void> _showCreateModuleDialog(

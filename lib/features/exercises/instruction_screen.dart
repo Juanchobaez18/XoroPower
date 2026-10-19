@@ -79,8 +79,11 @@ class _InstructionScreenState extends State<InstructionScreen> {
           onPressed: () => context.pop(),
         ),
       ),
-      body: Column(
-        children: [
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 680),
+          child: Column(
+            children: [
           // Progress Bar
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
@@ -208,6 +211,8 @@ class _InstructionScreenState extends State<InstructionScreen> {
           const SizedBox(height: 24),
         ],
       ),
-    );
+    ),
+  ),
+);
   }
 }

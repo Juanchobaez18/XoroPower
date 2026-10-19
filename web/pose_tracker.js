@@ -23,6 +23,15 @@ window.webPoseTracker = {
     cooldownMs: 230,
     calibrationMs: 800
   },
+  objectFit: 'contain',
+  videoElement: null,
+
+  setObjectFit: function(fit) {
+    this.objectFit = fit;
+    if (this.videoElement) {
+      this.videoElement.style.objectFit = fit;
+    }
+  },
 
   startTracking: function(videoElement) {
     if (!videoElement) return;
@@ -32,6 +41,9 @@ window.webPoseTracker = {
       left: this.createHandState(),
       right: this.createHandState()
     };
+    this.videoElement = videoElement;
+    videoElement.style.objectFit = this.objectFit || 'contain';
+    videoElement.style.backgroundColor = '#07090e';
     this.detectorReady = false;
     this.cameraStreamReady = false;
     this.firstFrameProcessed = false;
@@ -108,8 +120,9 @@ window.webPoseTracker = {
         audio: false,
         video: {
           facingMode: 'user',
-          width: {ideal: 640},
-          height: {ideal: 480}
+          width: {ideal: 1280, min: 640},
+          height: {ideal: 720, min: 480},
+          aspectRatio: {ideal: 1.7777777778}
         }
       }).then(async stream => {
         if (attempt !== this.startAttempt) {

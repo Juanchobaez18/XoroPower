@@ -9,6 +9,7 @@ class WebPoseService {
   static const String _videoViewId = 'webPoseVideo';
   static bool _videoViewRegistered = false;
   static WebPoseService? _activeService;
+  static String _currentObjectFit = 'contain';
 
   final Function(DetectedMotion) onShakeDetected;
   final ValueChanged<bool>? onCameraReady;
@@ -33,7 +34,8 @@ class WebPoseService {
           ..autoplay = true
           ..style.width = '100%'
           ..style.height = '100%'
-          ..style.objectFit = 'cover'
+          ..style.objectFit = _currentObjectFit
+          ..style.backgroundColor = '#07090e'
           ..style.transform = 'scaleX(-1)';
       });
       _videoViewRegistered = true;
@@ -85,9 +87,24 @@ class WebPoseService {
           return;
         }
         _videoElement = element;
+        _videoElement?.style.objectFit = _currentObjectFit;
+        _videoElement?.style.backgroundColor = '#07090e';
         startTracking(viewId);
       },
     );
+  }
+
+  void setObjectFit(String fit) {
+    _currentObjectFit = fit;
+    if (_videoElement != null) {
+      _videoElement!.style.objectFit = fit;
+    }
+    final tracker = js.context['webPoseTracker'];
+    if (tracker != null) {
+      try {
+        tracker.callMethod('setObjectFit', [fit]);
+      } catch (_) {}
+    }
   }
 
   void startTracking(String videoElementId) {

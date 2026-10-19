@@ -146,10 +146,13 @@ class _ModuleDetailScreenState extends ConsumerState<ModuleDetailScreen> {
                 ],
               ),
             )
-          : ListView.builder(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-              itemCount: _exercises.length,
-              itemBuilder: (context, index) {
+          : Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 960),
+                child: ListView.builder(
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                  itemCount: _exercises.length,
+                  itemBuilder: (context, index) {
                 final exercise = _exercises[index];
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 12),
@@ -243,6 +246,8 @@ class _ModuleDetailScreenState extends ConsumerState<ModuleDetailScreen> {
                 );
               },
             ),
+          ),
+        ),
     );
   }
 }

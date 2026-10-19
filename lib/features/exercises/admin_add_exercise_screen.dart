@@ -637,7 +637,12 @@ class _AdminAddExerciseScreenState
         children: [
           // 1. Cámara (solo si _showCamera o _isRecording)
           if (_showCamera || _isRecording)
-            Positioned.fill(child: CameraView(onShake: _onShakeDetected)),
+            Positioned.fill(
+              child: CameraView(
+                onShake: _onShakeDetected,
+                fitMode: 'contain',
+              ),
+            ),
 
           // 2. Filtro oscuro semi-transparente
           Positioned.fill(
@@ -647,11 +652,14 @@ class _AdminAddExerciseScreenState
           // 3. UI de Controles Superpuestos
           SafeArea(
             child: SingleChildScrollView(
-              child: Padding(
-                padding: const EdgeInsets.all(24.0),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 820),
+                  child: Padding(
+                    padding: const EdgeInsets.all(24.0),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
                     // Título del ejercicio
                     TextField(
                       controller: _titleController,
@@ -880,8 +888,10 @@ class _AdminAddExerciseScreenState
               ),
             ),
           ),
-        ],
+        ),
       ),
-    );
+    ],
+  ),
+);
   }
 }

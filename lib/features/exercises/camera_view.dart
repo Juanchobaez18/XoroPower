@@ -13,6 +13,7 @@ class CameraView extends StatefulWidget {
   final ValueChanged<String>? onCameraError;
   final ValueChanged<String>? onDetectionStatus;
   final bool enableTapSimulation;
+  final String fitMode;
 
   const CameraView({
     super.key,
@@ -21,6 +22,7 @@ class CameraView extends StatefulWidget {
     this.onCameraError,
     this.onDetectionStatus,
     this.enableTapSimulation = true,
+    this.fitMode = 'contain',
   });
 
   @override
@@ -44,10 +46,19 @@ class _CameraViewState extends State<CameraView> {
         onCameraError: _reportCameraError,
         onDetectionStatus: widget.onDetectionStatus,
       );
+      _webPoseService?.setObjectFit(widget.fitMode);
       _isReady = true; // Permite que se dibuje el HtmlElementView
     } else {
       _poseService = PoseDetectorService(onShakeDetected: widget.onShake);
       _initializeCamera();
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant CameraView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (kIsWeb && oldWidget.fitMode != widget.fitMode) {
+      _webPoseService?.setObjectFit(widget.fitMode);
     }
   }
 
@@ -258,27 +269,30 @@ class _CameraViewState extends State<CameraView> {
     }
 
     if (kIsWeb) {
-      return Stack(
-        fit: StackFit.expand,
-        children: [
-          _webPoseService?.buildVideoElement('webPoseVideo') ??
-              const SizedBox.shrink(),
-          if (widget.enableTapSimulation)
-            GestureDetector(
-              onTapDown: (details) {
-                final width = MediaQuery.of(context).size.width;
-                widget.onShake(
-                  DetectedMotion(
-                    hand: details.globalPosition.dx < width / 2
-                        ? HandSide.left
-                        : HandSide.right,
-                    direction: MotionDirection.down,
-                  ),
-                );
-              },
-              child: const ColoredBox(color: Colors.transparent),
-            ),
-        ],
+      return Container(
+        color: const Color(0xFF07090E),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            _webPoseService?.buildVideoElement('webPoseVideo') ??
+                const SizedBox.shrink(),
+            if (widget.enableTapSimulation)
+              GestureDetector(
+                onTapDown: (details) {
+                  final width = MediaQuery.of(context).size.width;
+                  widget.onShake(
+                    DetectedMotion(
+                      hand: details.globalPosition.dx < width / 2
+                          ? HandSide.left
+                          : HandSide.right,
+                      direction: MotionDirection.down,
+                    ),
+                  );
+                },
+                child: const ColoredBox(color: Colors.transparent),
+              ),
+          ],
+        ),
       );
     }
 

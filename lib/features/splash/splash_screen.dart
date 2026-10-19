@@ -301,17 +301,22 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                 ),
               ),
 
-            // Capa de controles superiores (Siempre visibles o según interacción)
+            // Capa de controles superiores e inferiores (Alineados y responsivos)
             SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                child: Column(
-                  children: [
-                    _buildTopBar(),
-                    const Spacer(),
-                    if (_isVideoInitialized && _controller != null)
-                      _buildBottomVideoControls(),
-                  ],
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 1040),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    child: Column(
+                      children: [
+                        _buildTopBar(),
+                        const Spacer(),
+                        if (_isVideoInitialized && _controller != null)
+                          _buildBottomVideoControls(),
+                      ],
+                    ),
+                  ),
                 ),
               ),
             ),

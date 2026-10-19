@@ -24,7 +24,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   Future<void> _handleLogin() async {
-    final email = _emailController.text;
+    final email = _emailController.text.trim();
     final pass = _passwordController.text;
 
     if (email.isEmpty || !email.contains('@')) {
@@ -40,7 +40,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     try {
       final api = ref.read(apiClientProvider);
       await api.login(email, pass);
-      
+
       if (mounted) context.go('/dashboard');
     } catch (e) {
       if (mounted) _showErrorDialog(e.toString());
@@ -54,12 +54,23 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF1A1A1A),
-        title: const Text("Error de inicio de sesión", style: TextStyle(color: Colors.white)),
-        content: Text(message, style: TextStyle(color: Colors.white.withOpacity(0.8))),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          "Error de inicio de sesión",
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        content: Text(
+          message,
+          style: TextStyle(color: Colors.white.withOpacity(0.8)),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            style: TextButton.styleFrom(backgroundColor: const Color(0xFF0055FF)),
+            style: TextButton.styleFrom(
+              backgroundColor: const Color(0xFF0055FF),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
             child: const Text('Aceptar', style: TextStyle(color: Colors.white)),
           )
         ],
@@ -69,160 +80,331 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final size = MediaQuery.of(context).size;
+    final isDesktop = size.width >= 850;
+
     return Scaffold(
-      backgroundColor: const Color(0xFF000000), // XoroBlack
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            // Hero Section
-            SizedBox(
-              height: 260,
-              width: double.infinity,
-              child: Stack(
-                children: [
-                  Positioned.fill(
-                    child: Image.asset(
-                      'assets/images/usuario.png',
-                      fit: BoxFit.cover,
+      backgroundColor: const Color(0xFF030305),
+      body: isDesktop ? _buildDesktopLayout(size) : _buildMobileLayout(size),
+    );
+  }
+
+  // Layout Desktop / Web (Pantalla Dividida Elegante)
+  Widget _buildDesktopLayout(Size size) {
+    return Row(
+      children: [
+        // Panel Izquierdo: Visual Showcase y Marca
+        Expanded(
+          flex: 5,
+          child: Container(
+            margin: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(28),
+              border: Border.all(color: Colors.white.withOpacity(0.08)),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF0055FF).withOpacity(0.15),
+                  blurRadius: 30,
+                  spreadRadius: -5,
+                ),
+              ],
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                Image.asset(
+                  'assets/images/usuario.png',
+                  fit: BoxFit.cover,
+                ),
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        const Color(0x66000000),
+                        const Color(0xCC030305),
+                        const Color(0xFF030305),
+                      ],
+                      stops: const [0.0, 0.65, 1.0],
                     ),
                   ),
-                  Positioned.fill(
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [Colors.transparent, const Color(0xFF000000)],
-                          stops: const [0.0, 1.0],
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(48),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      RichText(
+                        text: const TextSpan(
+                          style: TextStyle(
+                            fontSize: 48,
+                            fontWeight: FontWeight.w900,
+                            fontStyle: FontStyle.italic,
+                            letterSpacing: 2,
+                            shadows: [
+                              Shadow(color: Colors.black87, offset: Offset(4, 4), blurRadius: 12),
+                            ],
+                          ),
+                          children: [
+                            TextSpan(text: 'XORO', style: TextStyle(color: Color(0xFF0055FF))),
+                            TextSpan(text: 'PO', style: TextStyle(color: Colors.white)),
+                            TextSpan(text: 'WER', style: TextStyle(color: Color(0xFFFF0033))),
+                          ],
                         ),
                       ),
-                    ),
-                  ),
-                  Align(
-                    alignment: Alignment.center,
-                    child: Padding(
-                      padding: const EdgeInsets.only(top: 100),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
+                      const SizedBox(height: 12),
+                      const Text(
+                        'Aprende el arte de las maracas llaneras con retroalimentación y reconocimiento en tiempo real.',
+                        style: TextStyle(
+                          color: Color(0xFFCCCCCC),
+                          fontSize: 16,
+                          height: 1.5,
+                        ),
+                      ),
+                      const SizedBox(height: 28),
+                      Wrap(
+                        spacing: 12,
+                        runSpacing: 10,
                         children: [
-                          RichText(
-                            text: const TextSpan(
-                              style: TextStyle(
-                                fontSize: 35,
-                                fontWeight: FontWeight.w900,
-                                fontStyle: FontStyle.italic,
-                                shadows: [
-                                  Shadow(
-                                    color: Colors.black87,
-                                    offset: Offset(4, 4),
-                                    blurRadius: 12,
-                                  ),
-                                ],
-                              ),
-                              children: [
-                                TextSpan(text: 'XORO', style: TextStyle(color: Color(0xFF0055FF))), // ElectricBlue
-                                TextSpan(text: 'PO', style: TextStyle(color: Colors.white)),
-                                TextSpan(text: 'WER', style: TextStyle(color: Color(0xFFFF0033))), // BrightRed
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'BIENVENIDO DE VUELTA',
-                            style: TextStyle(
-                              color: Colors.white.withOpacity(0.75),
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 1.5,
-                            ),
-                          ),
+                          _buildPill('🎵 Detección Rítmica'),
+                          _buildPill('🤖 Visión Artificial'),
+                          _buildPill('🏆 Aprendizaje Interactivo'),
                         ],
                       ),
-                    ),
-                  )
-                ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+
+        // Panel Derecho: Formulario Centrado
+        Expanded(
+          flex: 6,
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 32),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 440),
+                child: _buildFormCard(isDesktop: true),
               ),
             ),
-            
-            const SizedBox(height: 10),
+          ),
+        ),
+      ],
+    );
+  }
 
-            // Form Section
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.03),
-                  borderRadius: BorderRadius.circular(24),
-                  border: Border.all(color: Colors.white.withOpacity(0.08)),
-                ),
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
+  // Layout Móvil / Pantallas Angostas
+  Widget _buildMobileLayout(Size size) {
+    return SingleChildScrollView(
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 480),
+          child: Column(
+            children: [
+              // Cabecera compacta
+              SizedBox(
+                height: 220,
+                width: double.infinity,
+                child: Stack(
                   children: [
-                    _buildTextField(
-                      label: 'CORREO ELECTRÓNICO',
-                      placeholder: 'tu@correo.com',
-                      icon: Icons.mail_outline,
-                      controller: _emailController,
+                    Positioned.fill(
+                      child: Image.asset(
+                        'assets/images/usuario.png',
+                        fit: BoxFit.cover,
+                      ),
                     ),
-                    const SizedBox(height: 20),
-                    _buildTextField(
-                      label: 'CONTRASEÑA',
-                      placeholder: 'Contraseña',
-                      icon: Icons.lock_outline,
-                      controller: _passwordController,
-                      isPassword: true,
-                      obscureText: !_passwordVisible,
-                      onToggleVisibility: () {
-                        setState(() => _passwordVisible = !_passwordVisible);
-                      },
-                    ),
-                    const SizedBox(height: 30),
-                    SizedBox(
-                      height: 56,
-                      child: ElevatedButton(
-                        onPressed: _isLoading ? null : _handleLogin,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF0055FF), // ElectricBlue
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
+                    Positioned.fill(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.transparent,
+                              const Color(0xFF030305),
+                            ],
+                            stops: const [0.0, 1.0],
                           ),
                         ),
-                        child: _isLoading 
-                          ? const CircularProgressIndicator(color: Colors.white)
-                          : Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const Icon(Icons.play_arrow_outlined, color: Colors.white, size: 20),
-                                const SizedBox(width: 8),
-                                const Text(
-                                  'ENTRAR A LA APP',
-                                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 16),
-                                ),
-                              ],
+                      ),
+                    ),
+                    Align(
+                      alignment: Alignment.bottomCenter,
+                      child: Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: RichText(
+                          text: const TextSpan(
+                            style: TextStyle(
+                              fontSize: 34,
+                              fontWeight: FontWeight.w900,
+                              fontStyle: FontStyle.italic,
                             ),
+                            children: [
+                              TextSpan(text: 'XORO', style: TextStyle(color: Color(0xFF0055FF))),
+                              TextSpan(text: 'PO', style: TextStyle(color: Colors.white)),
+                              TextSpan(text: 'WER', style: TextStyle(color: Color(0xFFFF0033))),
+                            ],
+                          ),
+                        ),
                       ),
                     ),
                   ],
                 ),
               ),
-            ),
 
-            const SizedBox(height: 40),
-            
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text('¿Aún no tienes cuenta? ', style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 15)),
-                GestureDetector(
-                  onTap: () => context.push('/register'),
-                  child: const Text('Regístrate aquí', style: TextStyle(color: Color(0xFF0055FF), fontSize: 15, fontWeight: FontWeight.bold)),
-                ),
-              ],
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: _buildFormCard(isDesktop: false),
+              ),
+              const SizedBox(height: 32),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFormCard({required bool isDesktop}) {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF0E0E14),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.white.withOpacity(0.08)),
+        boxShadow: const [
+          BoxShadow(
+            color: Colors.black54,
+            blurRadius: 24,
+            offset: Offset(0, 8),
+          ),
+        ],
+      ),
+      padding: EdgeInsets.all(isDesktop ? 36 : 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text(
+            'INICIAR SESIÓN',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 22,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 1.5,
             ),
-            
-            const SizedBox(height: 60),
-          ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Ingresa tus credenciales para continuar tu práctica.',
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.6),
+              fontSize: 13,
+            ),
+          ),
+          const SizedBox(height: 28),
+          _buildTextField(
+            label: 'CORREO ELECTRÓNICO',
+            placeholder: 'tu@correo.com',
+            icon: Icons.mail_outline,
+            controller: _emailController,
+            keyboardType: TextInputType.emailAddress,
+          ),
+          const SizedBox(height: 20),
+          _buildTextField(
+            label: 'CONTRASEÑA',
+            placeholder: '••••••••',
+            icon: Icons.lock_outline,
+            controller: _passwordController,
+            isPassword: true,
+            obscureText: !_passwordVisible,
+            onToggleVisibility: () {
+              setState(() => _passwordVisible = !_passwordVisible);
+            },
+          ),
+          const SizedBox(height: 32),
+          SizedBox(
+            height: 52,
+            child: ElevatedButton(
+              onPressed: _isLoading ? null : _handleLogin,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF0055FF),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                elevation: 4,
+                shadowColor: const Color(0x660055FF),
+              ),
+              child: _isLoading
+                  ? const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2.5,
+                      ),
+                    )
+                  : const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.play_arrow_rounded, size: 22),
+                        SizedBox(width: 8),
+                        Text(
+                          'ENTRAR A LA APP',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w900,
+                            fontSize: 15,
+                            letterSpacing: 1,
+                          ),
+                        ),
+                      ],
+                    ),
+            ),
+          ),
+          const SizedBox(height: 28),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                '¿Aún no tienes cuenta? ',
+                style: TextStyle(color: Colors.white.withOpacity(0.55), fontSize: 14),
+              ),
+              GestureDetector(
+                onTap: () => context.push('/register'),
+                child: const Text(
+                  'Regístrate aquí',
+                  style: TextStyle(
+                    color: Color(0xFF0055FF),
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPill(String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withOpacity(0.12)),
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
         ),
       ),
     );
@@ -235,6 +417,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     required TextEditingController controller,
     bool isPassword = false,
     bool obscureText = false,
+    TextInputType keyboardType = TextInputType.text,
     VoidCallback? onToggleVisibility,
   }) {
     return Column(
@@ -244,30 +427,45 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           padding: const EdgeInsets.only(bottom: 8),
           child: Text(
             label,
-            style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 11, fontWeight: FontWeight.bold),
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.7),
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1,
+            ),
           ),
         ),
         TextField(
           controller: controller,
           obscureText: obscureText,
-          style: const TextStyle(color: Colors.white),
+          keyboardType: keyboardType,
+          style: const TextStyle(color: Colors.white, fontSize: 14),
           decoration: InputDecoration(
             hintText: placeholder,
-            hintStyle: TextStyle(color: Colors.white.withOpacity(0.2)),
-            prefixIcon: Icon(icon, color: Colors.white.withOpacity(0.4)),
-            suffixIcon: isPassword ? IconButton(
-              icon: Icon(obscureText ? Icons.visibility_off_outlined : Icons.visibility_outlined, color: Colors.white.withOpacity(0.3)),
-              onPressed: onToggleVisibility,
-            ) : null,
+            hintStyle: TextStyle(color: Colors.white.withOpacity(0.25)),
+            prefixIcon: Icon(icon, color: Colors.white.withOpacity(0.5), size: 20),
+            suffixIcon: isPassword
+                ? IconButton(
+                    icon: Icon(
+                      obscureText
+                          ? Icons.visibility_off_outlined
+                          : Icons.visibility_outlined,
+                      color: Colors.white.withOpacity(0.4),
+                      size: 20,
+                    ),
+                    onPressed: onToggleVisibility,
+                  )
+                : null,
             filled: true,
-            fillColor: Colors.white.withOpacity(0.05),
+            fillColor: Colors.white.withOpacity(0.04),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
             enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(14),
               borderSide: BorderSide(color: Colors.white.withOpacity(0.1)),
             ),
             focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xFF0055FF)),
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: Color(0xFF0055FF), width: 1.5),
             ),
           ),
         ),

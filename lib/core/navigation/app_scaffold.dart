@@ -9,17 +9,227 @@ class AppScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final width = MediaQuery.of(context).size.width;
+    final isDesktop = width >= 850;
+
     return Scaffold(
       backgroundColor: const Color(0xFF030305), // DeepBlack
-      appBar: _XoroTopBar(),
-      drawer: const _XoroDrawer(),
-      body: child,
-      bottomNavigationBar: _BottomNavBar(),
+      appBar: isDesktop ? const _XoroDesktopTopBar() : _XoroMobileTopBar(),
+      drawer: isDesktop ? null : const _XoroDrawer(),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1280),
+          child: child,
+        ),
+      ),
+      bottomNavigationBar: isDesktop ? null : _BottomNavBar(),
     );
   }
 }
 
-class _XoroTopBar extends StatelessWidget implements PreferredSizeWidget {
+// Barra de Navegación Superior para Escritorio / Web
+class _XoroDesktopTopBar extends ConsumerWidget implements PreferredSizeWidget {
+  const _XoroDesktopTopBar();
+
+  @override
+  Size get preferredSize => const Size.fromHeight(70);
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final location = GoRouterState.of(context).uri.path;
+    final api = ref.watch(apiClientProvider);
+    final esAdmin = api.isAdmin;
+    final nombre = api.currentName;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF0D0D12).withOpacity(0.95),
+        border: Border(bottom: BorderSide(color: Colors.white.withOpacity(0.08))),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 32),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1280),
+          child: Row(
+            children: [
+              // Logotipo
+              InkWell(
+                onTap: () => context.go(esAdmin ? '/admin_dashboard' : '/dashboard'),
+                child: RichText(
+                  text: const TextSpan(
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w900,
+                      fontStyle: FontStyle.italic,
+                      letterSpacing: 1.5,
+                    ),
+                    children: [
+                      TextSpan(text: 'XORO', style: TextStyle(color: Color(0xFF0055FF))),
+                      TextSpan(text: 'PO', style: TextStyle(color: Colors.white)),
+                      TextSpan(text: 'WER', style: TextStyle(color: Color(0xFFFF0033))),
+                    ],
+                  ),
+                ),
+              ),
+
+              const SizedBox(width: 48),
+
+              // Enlaces de Navegación Web Desktop
+              Expanded(
+                child: Row(
+                  children: esAdmin
+                      ? [
+                          _DesktopNavLink(
+                            label: 'Panel de Control',
+                            icon: Icons.dashboard_outlined,
+                            isActive: location == '/admin_dashboard',
+                            onTap: () => context.go('/admin_dashboard'),
+                          ),
+                          _DesktopNavLink(
+                            label: 'Grabar Lección',
+                            icon: Icons.video_call_outlined,
+                            isActive: location == '/admin_add_exercise',
+                            onTap: () => context.go('/admin_add_exercise'),
+                          ),
+                          _DesktopNavLink(
+                            label: 'Gestión de Usuarios',
+                            icon: Icons.people_outline,
+                            isActive: location == '/admin_users',
+                            onTap: () => context.go('/admin_users'),
+                          ),
+                        ]
+                      : [
+                          _DesktopNavLink(
+                            label: 'Inicio',
+                            icon: Icons.home_outlined,
+                            isActive: location == '/dashboard',
+                            onTap: () => context.go('/dashboard'),
+                          ),
+                          _DesktopNavLink(
+                            label: 'Categorías',
+                            icon: Icons.library_books_outlined,
+                            isActive: location == '/categories',
+                            onTap: () => context.go('/categories'),
+                          ),
+                          _DesktopNavLink(
+                            label: 'Progreso',
+                            icon: Icons.bar_chart_outlined,
+                            isActive: location == '/progress',
+                            onTap: () => context.go('/progress'),
+                          ),
+                        ],
+                ),
+              ),
+
+              // Chip de Perfil de Usuario y Logout
+              InkWell(
+                onTap: () => context.go('/profile'),
+                borderRadius: BorderRadius.circular(24),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.05),
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(color: Colors.white.withOpacity(0.1)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF0055FF).withOpacity(0.2),
+                          shape: BoxShape.circle,
+                        ),
+                        alignment: Alignment.center,
+                        child: const Text('🤠', style: TextStyle(fontSize: 16)),
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        nombre,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              const SizedBox(width: 12),
+
+              IconButton(
+                icon: const Icon(Icons.logout, color: Colors.white60, size: 20),
+                tooltip: 'Cerrar Sesión',
+                onPressed: () => api.logout(),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DesktopNavLink extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool isActive;
+  final VoidCallback onTap;
+
+  const _DesktopNavLink({
+    required this.label,
+    required this.icon,
+    required this.isActive,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 6),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          decoration: BoxDecoration(
+            color: isActive ? const Color(0xFF0055FF).withOpacity(0.15) : Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isActive ? const Color(0xFF0055FF).withOpacity(0.4) : Colors.transparent,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                color: isActive ? const Color(0xFF0055FF) : const Color(0xFF999999),
+                size: 18,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: TextStyle(
+                  color: isActive ? Colors.white : const Color(0xFF999999),
+                  fontSize: 14,
+                  fontWeight: isActive ? FontWeight.bold : FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// Barra Superior para Móviles
+class _XoroMobileTopBar extends StatelessWidget implements PreferredSizeWidget {
   @override
   Size get preferredSize => const Size.fromHeight(kToolbarHeight);
 

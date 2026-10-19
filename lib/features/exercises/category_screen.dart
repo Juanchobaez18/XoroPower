@@ -157,27 +157,56 @@ class _CategoryScreenState extends ConsumerState<CategoryScreen> {
               ),
             )
           else
-            ListView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: _modules.length,
-              itemBuilder: (context, index) {
-                final module = _modules[index];
-                return Padding(
-                  padding: const EdgeInsets.only(
-                    bottom: 12,
-                    left: 24,
-                    right: 24,
-                  ),
-                  child: _CategoryActivityCard(
-                    id: (index + 1).toString(),
-                    title: module['name'] as String,
-                    desc: module['description'] as String,
-                    isUnlocked: true,
-                    onClick: () {
-                      context.push('/module/${module["id"]}');
-                    },
-                  ),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final isWide = constraints.maxWidth >= 720;
+                if (isWide) {
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: Wrap(
+                      spacing: 16,
+                      runSpacing: 16,
+                      children: [
+                        for (int index = 0; index < _modules.length; index++)
+                          SizedBox(
+                            width: (constraints.maxWidth - 48 - 16) / 2,
+                            child: _CategoryActivityCard(
+                              id: (index + 1).toString(),
+                              title: _modules[index]['name'] as String,
+                              desc: _modules[index]['description'] as String,
+                              isUnlocked: true,
+                              onClick: () {
+                                context.push('/module/${_modules[index]["id"]}');
+                              },
+                            ),
+                          ),
+                      ],
+                    ),
+                  );
+                }
+                return ListView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: _modules.length,
+                  itemBuilder: (context, index) {
+                    final module = _modules[index];
+                    return Padding(
+                      padding: const EdgeInsets.only(
+                        bottom: 12,
+                        left: 24,
+                        right: 24,
+                      ),
+                      child: _CategoryActivityCard(
+                        id: (index + 1).toString(),
+                        title: module['name'] as String,
+                        desc: module['description'] as String,
+                        isUnlocked: true,
+                        onClick: () {
+                          context.push('/module/${module["id"]}');
+                        },
+                      ),
+                    );
+                  },
                 );
               },
             ),
